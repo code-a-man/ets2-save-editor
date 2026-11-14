@@ -14,9 +14,15 @@ case "$target" in
     *) echo "Usage: ./scripts/build.sh [arm64|x86_64|universal]" >&2; exit 2 ;;
 esac
 
-temp="$(mktemp -d "${TMPDIR:-/tmp}/ets2-mini.XXXXXXXX")"
+version="${ETS2_VERSION:-1.0.1}"
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "ETS2_VERSION must be a version like 1.0.1." >&2
+    exit 2
+fi
+
+temp="$(mktemp -d "${TMPDIR:-/tmp}/ets2-save-editor.XXXXXXXX")"
 trap 'rm -rf "$temp"' EXIT
-app="$temp/ETS2 Mini.app"
+app="$temp/ETS2 Save Editor.app"
 mkdir -p "$app/Contents/"{MacOS,Helpers,Resources} dist
 
 for arch in "${architectures[@]}"; do
@@ -29,7 +35,7 @@ for arch in "${architectures[@]}"; do
 done
 
 core="$app/Contents/Helpers/ets2-save-core"
-ui="$app/Contents/MacOS/ETS2 Mini"
+ui="$app/Contents/MacOS/ETS2 Save Editor"
 if [[ "$target" == universal ]]; then
     xcrun lipo -create "$temp/core-arm64" "$temp/core-x86_64" -output "$core"
     xcrun lipo -create "$temp/ui-arm64" "$temp/ui-x86_64" -output "$ui"
@@ -39,14 +45,16 @@ else
 fi
 
 cp scripts/Info.plist "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $version" "$app/Contents/Info.plist"
 cp LICENSE "$app/Contents/Resources/LICENSE.txt"
 codesign --force --sign - "$core"
 codesign --force --sign - "$app"
 codesign --verify --strict --deep "$app"
-ditto -c -k --sequesterRsrc --keepParent "$app" "$temp/ETS2-Mini-macOS-$target.zip"
+ditto -c -k --sequesterRsrc --keepParent "$app" "$temp/ETS2-Save-Editor-macOS-$target.zip"
 
 # Replace only the known build outputs after the new package has been verified.
-rm -rf "dist/ETS2 Mini.app"
-ditto "$app" "dist/ETS2 Mini.app"
-mv -f "$temp/ETS2-Mini-macOS-$target.zip" "dist/ETS2-Mini-macOS-$target.zip"
-printf 'dist/ETS2 Mini.app\ndist/ETS2-Mini-macOS-%s.zip\n' "$target"
+rm -rf "dist/ETS2 Save Editor.app"
+ditto "$app" "dist/ETS2 Save Editor.app"
+mv -f "$temp/ETS2-Save-Editor-macOS-$target.zip" "dist/ETS2-Save-Editor-macOS-$target.zip"
+printf 'dist/ETS2 Save Editor.app\ndist/ETS2-Save-Editor-macOS-%s.zip\n' "$target"

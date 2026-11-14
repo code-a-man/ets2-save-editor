@@ -234,9 +234,9 @@ private struct Editor: View {
 }
 
 @main
-struct MiniEditorApp: App {
+struct SaveEditorApp: App {
     var body: some Scene {
-        Window("ETS2 Mini", id: "editor") {
+        Window("ETS2 Save Editor", id: "editor") {
             Editor()
         }
         .windowResizability(.contentSize)

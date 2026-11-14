@@ -19,8 +19,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/code-a-man/ets2-mini/bsii"
-	"github.com/code-a-man/ets2-mini/decoder"
+	"github.com/code-a-man/ets2-save-editor/bsii"
+	"github.com/code-a-man/ets2-save-editor/decoder"
 )
 
 var (
@@ -533,7 +533,7 @@ func stage(target string, data []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	f, err := os.CreateTemp(filepath.Dir(target), ".ets2-mini-*")
+	f, err := os.CreateTemp(filepath.Dir(target), ".ets2-save-editor-*")
 	if err != nil {
 		return "", err
 	}
@@ -728,7 +728,7 @@ func run(args []string) (view, error) {
 
 	var v view
 	if args[0] == "write" {
-		root := filepath.Join(home, "Library", "Application Support", "ETS2 Mini", "Yedekler")
+		root := filepath.Join(home, "Library", "Application Support", "ETS2 Save Editor", "Yedekler")
 		v, err = write(s, args[2:], root, isGameOpen)
 		if err == nil {
 			choices = discoverSaves(home)
