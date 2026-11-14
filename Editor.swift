@@ -13,6 +13,10 @@ private struct SaveState: Decodable {
     let token: String
     let money: String
     let skills: [Int]
+    let xp: Int
+    let level: Int
+    let canRepair: Bool
+    let canRefuel: Bool
     let job: String
     let canCancel: Bool
     let gameOpen: Bool
@@ -24,7 +28,7 @@ private struct EditorError: Decodable, LocalizedError {
     var errorDescription: String? { error }
 }
 
-private func runEditor(_ arguments: [String]) throws -> SaveState {
+private func runEditor<Result: Decodable>(_ arguments: [String], as type: Result.Type) throws -> Result {
     let task = Process()
     task.executableURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/ets2-save-core")
     task.arguments = arguments
@@ -37,11 +41,10 @@ private func runEditor(_ arguments: [String]) throws -> SaveState {
     let decoder = JSONDecoder()
     if let failure = try? decoder.decode(EditorError.self, from: data) { throw failure }
     guard task.terminationStatus == 0,
-          let save = try? decoder.decode(SaveState.self, from: data),
-          save.skills.count == 6 else {
+          let result = try? decoder.decode(type, from: data) else {
         throw EditorError(error: "Kayıt okunamadı.")
     }
-    return save
+    return result
 }
 
 private struct Editor: View {
@@ -51,6 +54,11 @@ private struct Editor: View {
     @State private var money = ""
     @State private var skills = Array(repeating: 0, count: 6)
     @State private var cancelJob = false
+    @State private var repair = false
+    @State private var refuel = false
+    @State private var careerMode = "level"
+    @State private var career = ""
+    @State private var showSteam = false
     @State private var status = ""
     @State private var failed = false
     @State private var backup: String?
@@ -90,6 +98,20 @@ private struct Editor: View {
                     }
                 }
                 GridRow {
+                    Picker("Kariyer", selection: $careerMode) {
+                        Text("Seviye").tag("level")
+                        Text("XP").tag("xp")
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    .onChange(of: careerMode) { mode in
+                        if let save { career = String(mode == "level" ? save.level : save.xp) }
+                    }
+                    TextField(careerMode == "level" ? "Seviye" : "XP", text: $career)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 105)
+                }
+                GridRow {
                     Text("ADR")
                     Menu("\(skills[0].nonzeroBitCount) / 6 sınıf") {
                         ForEach(classes.indices, id: \.self) { index in
@@ -113,11 +135,25 @@ private struct Editor: View {
             }
             .disabled(save == nil || busy)
 
+            if let save, save.canRepair || save.canRefuel {
+                HStack(spacing: 15) {
+                    if save.canRepair {
+                        Toggle("Tır ve dorseyi onar", isOn: $repair)
+                            .help("Hasar ve kalıcı aşınmayı sıfırlar.")
+                    }
+                    if save.canRefuel {
+                        Toggle("Depoyu doldur", isOn: $refuel)
+                    }
+                }
+                .toggleStyle(.checkbox)
+                .disabled(busy || cancelJob)
+            }
+
             if let save, save.canCancel {
                 Toggle("Hızlı işi cezasız iptal et", isOn: $cancelJob)
                     .toggleStyle(.checkbox)
                     .help(save.job)
-                    .disabled(busy)
+                    .disabled(busy || repair || refuel)
             } else if let save, !save.job.isEmpty {
                 Text("Bu iş için uygun iş öncesi kayıt bulunamadı.")
                     .font(.caption).foregroundStyle(.secondary)
@@ -130,6 +166,7 @@ private struct Editor: View {
             }
 
             HStack {
+                Button("Steam Ayarları…") { showSteam = true }
                 if busy {
                     ProgressView().controlSize(.small)
                         .accessibilityLabel("Kayıt işleniyor")
@@ -148,6 +185,7 @@ private struct Editor: View {
         }
         .padding(19)
         .frame(width: 406)
+        .sheet(isPresented: $showSteam) { SteamOptions() }
         .task { if save == nil && status.isEmpty { load(["read"]) } }
     }
 
@@ -167,9 +205,15 @@ private struct Editor: View {
         return profile.map { "\($0) · \(name)" } ?? name
     }
 
+    private var careerTarget: Int? {
+        guard let n = Int(career), n >= 0, n <= (careerMode == "level" ? 315821 : 2147483647) else { return nil }
+        return n
+    }
+
     private var canSave: Bool {
-        guard let save, let amount = Int64(money), !save.gameOpen else { return false }
-        return String(amount) != save.money || skills != save.skills || cancelJob
+        guard let save, let amount = Int64(money), let target = careerTarget, !save.gameOpen else { return false }
+        let original = careerMode == "level" ? save.level : save.xp
+        return String(amount) != save.money || skills != save.skills || target != original || cancelJob || repair || refuel
     }
 
     private func adrClass(_ index: Int) -> Binding<Bool> {
@@ -199,9 +243,9 @@ private struct Editor: View {
     }
 
     private func saveChanges() {
-        guard let save, canSave, let amount = Int64(money) else { return }
+        guard let save, canSave, let amount = Int64(money), let target = careerTarget else { return }
         load(["write", save.path, save.token, String(amount)] + skills.map { String($0) }
-             + [cancelJob ? "cancel" : "keep"])
+             + [cancelJob ? "cancel" : "keep", "\(careerMode):\(target)", String(repair), String(refuel)])
     }
 
     private func load(_ arguments: [String]) {
@@ -213,12 +257,18 @@ private struct Editor: View {
             defer { busy = false }
             do {
                 let result = try await Task.detached(priority: .userInitiated) {
-                    try runEditor(arguments)
+                    try runEditor(arguments, as: SaveState.self)
                 }.value
+                guard result.skills.count == 6 else {
+                    throw EditorError(error: "Beceriler okunamadı.")
+                }
                 save = result
                 money = result.money
                 skills = result.skills
                 cancelJob = false
+                repair = false
+                refuel = false
+                career = String(careerMode == "level" ? result.level : result.xp)
                 backup = result.backup
                 if result.gameOpen {
                     status = "Kaydetmek için ETS2’yi kapat ve Son Kayıt’a bas."
@@ -228,6 +278,70 @@ private struct Editor: View {
             } catch {
                 status = error.localizedDescription
                 failed = true
+            }
+        }
+    }
+}
+
+private struct SteamState: Decodable {
+    let enabled: Bool
+    let running: Bool
+    let token: String
+}
+
+private struct SteamOptions: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var steam: SteamState?
+    @State private var busy = false
+    @State private var error = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Steam Başlatma Seçenekleri").font(.headline)
+            Toggle("Vulkan + SDR", isOn: Binding(
+                get: { steam?.enabled ?? false },
+                set: { enabled in
+                    guard let steam else { return }
+                    update([enabled ? "on" : "off", steam.token])
+                }
+            ))
+            .toggleStyle(.switch)
+            .disabled(steam == nil || steam?.running == true || busy)
+            Text("-color_mode sdr -rdevice vk")
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+
+            if steam?.running == true {
+                Text("Ayarı değiştirmek için Steam’i tamamen kapat ve Yenile’ye bas.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            if !error.isEmpty {
+                Text(error).font(.callout).foregroundStyle(.red)
+            }
+            HStack {
+                Button("Yenile") { update([]) }.disabled(busy)
+                if busy { ProgressView().controlSize(.small) }
+                Spacer()
+                Button("Kapat") { dismiss() }.keyboardShortcut(.cancelAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 390)
+        .task { update([]) }
+    }
+
+    private func update(_ arguments: [String]) {
+        guard !busy else { return }
+        busy = true
+        error = ""
+        Task { @MainActor in
+            defer { busy = false }
+            do {
+                steam = try await Task.detached {
+                    try runEditor(["steam"] + arguments, as: SteamState.self)
+                }.value
+            } catch {
+                self.error = error.localizedDescription
             }
         }
     }

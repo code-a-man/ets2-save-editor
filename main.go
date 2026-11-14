@@ -56,6 +56,10 @@ type saveChoice struct {
 }
 
 type view struct {
+	XP        int          `json:"xp"`
+	Level     int          `json:"level"`
+	CanRepair bool         `json:"canRepair"`
+	CanRefuel bool         `json:"canRefuel"`
 	Saves     []saveChoice `json:"saves"`
 	Path      string       `json:"path"`
 	Token     string       `json:"token"`
@@ -450,7 +454,13 @@ func inspect(s slot) (view, error) {
 	if _, err := strconv.ParseInt(money, 10, 64); err != nil {
 		return view{}, errors.New("Bakiye okunamadı.")
 	}
-	v := view{Path: s.path, Token: s.token, Money: money}
+	xp, err := strconv.Atoi(value(economy, "experience_points"))
+	if err != nil || xp < 0 || xp > maxXP {
+		return view{}, errors.New("XP okunamadı.")
+	}
+	rig := s.game.playerRig()
+	v := view{Path: s.path, Token: s.token, Money: money, XP: xp, Level: levelForXP(xp),
+		CanRepair: wearField.MatchString(rig.truck.text), CanRefuel: value(rig.truck, "fuel_relative") != ""}
 	for i, key := range skillKeys {
 		n, err := strconv.Atoi(value(economy, key))
 		limit := 6
@@ -561,7 +571,7 @@ func stage(target string, data []byte) (string, error) {
 }
 
 func write(s slot, args []string, root string, gameOpen func() (bool, error)) (view, error) {
-	if len(args) != 9 {
+	if len(args) != 9 && len(args) != 12 {
 		return view{}, errors.New("Eksik kayıt ayarı.")
 	}
 	if args[0] != s.token {
@@ -601,7 +611,40 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 			}
 		}
 	}
+	oldXP, err := strconv.Atoi(value(economy, "experience_points"))
+	if err != nil || oldXP < 0 || oldXP > maxXP {
+		return view{}, errors.New("XP okunamadı.")
+	}
+	xp := oldXP
+	repair, refuel := false, false
+	if len(args) == 12 {
+		xp, err = targetXP(oldXP, args[9])
+		if err != nil {
+			return view{}, err
+		}
+		repair, err = strconv.ParseBool(args[10])
+		if err != nil {
+			return view{}, err
+		}
+		refuel, err = strconv.ParseBool(args[11])
+		if err != nil {
+			return view{}, err
+		}
+		if xp != oldXP {
+			if err := economy.set("experience_points", strconv.Itoa(xp)); err != nil {
+				return view{}, err
+			}
+		}
+	}
 	changes := map[string]string{economy.id: economy.text}
+	if repair || refuel {
+		if args[8] == "cancel" {
+			return view{}, errors.New("Araç bakımı ile iş iptalini ayrı ayrı kaydet.")
+		}
+		if err := s.game.playerRig().edit(changes, repair, refuel); err != nil {
+			return view{}, err
+		}
+	}
 	switch args[8] {
 	case "cancel":
 		_, job := s.jobInfo()
@@ -615,18 +658,27 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 	default:
 		return view{}, errors.New("Geçersiz iş seçimi.")
 	}
-	textInfo := s.info.text
+	metadata := map[string]string{}
 	if amount := strconv.FormatInt(money, 10); amount != value(bank, "money_account") {
 		if err := bank.set("money_account", amount); err != nil {
 			return view{}, err
 		}
 		changes[bank.id] = bank.text
+		metadata["info_money_account"] = amount
+	}
+	if xp != oldXP {
+		metadata["info_players_experience"] = strconv.Itoa(xp)
+	}
+	textInfo := s.info.text
+	if len(metadata) > 0 {
 		info, err := s.info.one("save_container")
 		if err != nil {
 			return view{}, err
 		}
-		if err := info.set("info_money_account", amount); err != nil {
-			return view{}, err
+		for key, val := range metadata {
+			if err := info.set(key, val); err != nil {
+				return view{}, err
+			}
 		}
 		textInfo = s.info.render(map[string]string{info.id: info.text})
 	}
@@ -743,10 +795,21 @@ func run(args []string) (view, error) {
 	return v, err
 }
 func main() {
-	v, err := run(os.Args[1:])
+	var result any
+	var err error
+	args := os.Args[1:]
+	if len(args) > 0 && args[0] == "steam" {
+		var home string
+		home, err = os.UserHomeDir()
+		if err == nil {
+			result, err = steamCommand(home, args[1:])
+		}
+	} else {
+		result, err = run(args)
+	}
 	if err != nil {
 		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{"error": err.Error()})
 		return
 	}
-	_ = json.NewEncoder(os.Stdout).Encode(v)
+	_ = json.NewEncoder(os.Stdout).Encode(result)
 }
