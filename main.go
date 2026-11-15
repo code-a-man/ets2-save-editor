@@ -56,6 +56,7 @@ type saveChoice struct {
 }
 
 type view struct {
+	Garages   []garageView `json:"garages"`
 	XP        int          `json:"xp"`
 	Level     int          `json:"level"`
 	CanRepair bool         `json:"canRepair"`
@@ -459,7 +460,7 @@ func inspect(s slot) (view, error) {
 		return view{}, errors.New("XP okunamadı.")
 	}
 	rig := s.game.playerRig()
-	v := view{Path: s.path, Token: s.token, Money: money, XP: xp, Level: levelForXP(xp),
+	v := view{Path: s.path, Token: s.token, Money: money, XP: xp, Level: levelForXP(xp), Garages: s.game.garages(economy),
 		CanRepair: wearField.MatchString(rig.truck.text), CanRefuel: value(rig.truck, "fuel_relative") != ""}
 	for i, key := range skillKeys {
 		n, err := strconv.Atoi(value(economy, key))
@@ -571,7 +572,7 @@ func stage(target string, data []byte) (string, error) {
 }
 
 func write(s slot, args []string, root string, gameOpen func() (bool, error)) (view, error) {
-	if len(args) != 9 && len(args) != 12 {
+	if len(args) != 9 && len(args) < 12 {
 		return view{}, errors.New("Eksik kayıt ayarı.")
 	}
 	if args[0] != s.token {
@@ -617,7 +618,7 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 	}
 	xp := oldXP
 	repair, refuel := false, false
-	if len(args) == 12 {
+	if len(args) >= 12 {
 		xp, err = targetXP(oldXP, args[9])
 		if err != nil {
 			return view{}, err
@@ -637,6 +638,11 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 		}
 	}
 	changes := map[string]string{economy.id: economy.text}
+	if len(args) > 12 {
+		if err := s.game.buyGarages(economy, args[12:], changes); err != nil {
+			return view{}, err
+		}
+	}
 	if repair || refuel {
 		if args[8] == "cancel" {
 			return view{}, errors.New("Araç bakımı ile iş iptalini ayrı ayrı kaydet.")

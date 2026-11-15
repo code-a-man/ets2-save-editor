@@ -23,15 +23,19 @@ Editör bu macOS konumlarındaki yerel ve Steam Cloud kayıtlarını listeler:
 
 Değişiklikten önce iki dosyanın ZIP yedeği `~/Library/Application Support/ETS2 Save Editor/Yedekler/` klasörüne alınır. Geri dönmek için oyun kapalıyken ZIP’teki `game.sii` ve `info.sii` dosyalarını düzenlediğin kayıt klasörüne kopyala. Steam Cloud çakışma sorarsa hangi kopyayı istediğini tarihine bakarak seç. 1.0.0 yedekleri eski `ETS2 Mini/Yedekler/` klasöründe durur.
 
+## Garajlar
+
+**Garajlar…** seçilen kayıttaki şehirleri ve garaj durumlarını listeler. İstediğin şehirleri veya alınabilecek tüm garajları seçip ana ekranda **Kaydet**’e bas. Yeni garajlar beş boş yerle açılır ve bakiyeden ücret düşmez.
+
 ## Seviye ve Steam ayarı
 
 **Seviye** girersen oyunun varsayılan XP tablosuna göre o seviyenin başlangıç XP’si yazılır. XP tablosunu değiştiren modlar kullanıyorsan **XP** alanını seç.
 
-**Steam Ayarları… → Vulkan + SDR**, ETS2’nin Steam başlatma seçeneklerindeki `-color_mode sdr -rdevice vk` çiftini açar veya kapatır. Ayarı değiştirmek için Steam’den tamamen çık ve **Yenile**’ye bas. Değişiklik bir sonraki oyun açılışında geçerli olur.
+**Steam Ayarları… → Vulkan + SDR**, ETS2’nin Steam başlatma seçeneklerindeki `-color_mode sdr -rdevice vk` çiftini açar veya kapatır. Ayarı değiştirmek için Steam’den tamamen çık ve **Yenile**’ye bas. Değişiklik bir sonraki oyun açılışında geçerli olur. Vulkan açıkken %100 ölçekleme siyah ekrana neden olabilir. Oyunda %100 dışında bir ölçek seç.
 
 ## Sürüm yayımla
 
-`v1.1.0` biçiminde bir Git etiketi gönderildiğinde GitHub Actions testleri çalıştırır, Apple Silicon ve Intel için tek macOS ZIP’i derler ve GitHub Releases’e ekler. **Actions → macOS → Run workflow** ile sürüm oluşturmadan deneme paketi alabilirsin.
+`v1.2.0` biçiminde bir Git etiketi gönderildiğinde GitHub Actions testleri çalıştırır, Apple Silicon ve Intel için tek macOS ZIP’i derler ve GitHub Releases’e ekler. **Actions → macOS → Run workflow** ile sürüm oluşturmadan deneme paketi alabilirsin.
 
 ## Kaynaktan derle
 

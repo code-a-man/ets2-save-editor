@@ -7,7 +7,25 @@ private struct SaveChoice: Decodable, Identifiable {
     var id: String { path }
 }
 
+private struct GarageChoice: Decodable, Identifiable {
+    let id: String
+    let city: String
+    let status: String
+    let canBuy: Bool
+
+    var label: String {
+        switch status {
+        case "0": return canBuy ? "Satın alınmamış" : "Kullanılamıyor"
+        case "2": return "Küçük · 3 yer"
+        case "3": return "Büyük · 5 yer"
+        case "6": return "Başlangıç · 1 yer"
+        default: return "Durum: \(status)"
+        }
+    }
+}
+
 private struct SaveState: Decodable {
+    let garages: [GarageChoice]
     let saves: [SaveChoice]
     let path: String
     let token: String
@@ -59,6 +77,8 @@ private struct Editor: View {
     @State private var careerMode = "level"
     @State private var career = ""
     @State private var showSteam = false
+    @State private var showGarages = false
+    @State private var garagePurchases: Set<String> = []
     @State private var status = ""
     @State private var failed = false
     @State private var backup: String?
@@ -165,8 +185,17 @@ private struct Editor: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            HStack {
+            HStack(spacing: 12) {
                 Button("Steam Ayarları…") { showSteam = true }
+                if let save, !save.garages.isEmpty {
+                    Button(garagePurchases.isEmpty ? "Garajlar…" : "Garajlar (\(garagePurchases.count))") {
+                        showGarages = true
+                    }
+                    .disabled(busy)
+                }
+            }
+
+            HStack {
                 if busy {
                     ProgressView().controlSize(.small)
                         .accessibilityLabel("Kayıt işleniyor")
@@ -186,6 +215,11 @@ private struct Editor: View {
         .padding(19)
         .frame(width: 406)
         .sheet(isPresented: $showSteam) { SteamOptions() }
+        .sheet(isPresented: $showGarages) {
+            if let save {
+                GarageOptions(garages: save.garages, selected: $garagePurchases)
+            }
+        }
         .task { if save == nil && status.isEmpty { load(["read"]) } }
     }
 
@@ -213,7 +247,7 @@ private struct Editor: View {
     private var canSave: Bool {
         guard let save, let amount = Int64(money), let target = careerTarget, !save.gameOpen else { return false }
         let original = careerMode == "level" ? save.level : save.xp
-        return String(amount) != save.money || skills != save.skills || target != original || cancelJob || repair || refuel
+        return String(amount) != save.money || skills != save.skills || target != original || cancelJob || repair || refuel || !garagePurchases.isEmpty
     }
 
     private func adrClass(_ index: Int) -> Binding<Bool> {
@@ -245,7 +279,8 @@ private struct Editor: View {
     private func saveChanges() {
         guard let save, canSave, let amount = Int64(money), let target = careerTarget else { return }
         load(["write", save.path, save.token, String(amount)] + skills.map { String($0) }
-             + [cancelJob ? "cancel" : "keep", "\(careerMode):\(target)", String(repair), String(refuel)])
+             + [cancelJob ? "cancel" : "keep", "\(careerMode):\(target)", String(repair), String(refuel)]
+             + garagePurchases.sorted())
     }
 
     private func load(_ arguments: [String]) {
@@ -266,6 +301,7 @@ private struct Editor: View {
                 money = result.money
                 skills = result.skills
                 cancelJob = false
+                garagePurchases.removeAll()
                 repair = false
                 refuel = false
                 career = String(careerMode == "level" ? result.level : result.xp)
@@ -280,6 +316,61 @@ private struct Editor: View {
                 failed = true
             }
         }
+    }
+}
+
+private struct GarageOptions: View {
+    let garages: [GarageChoice]
+    @Binding var selected: Set<String>
+    @Environment(\.dismiss) private var dismiss
+    @State private var search = ""
+
+    private var buyable: Set<String> { Set(garages.filter(\.canBuy).map(\.id)) }
+    private var visible: [GarageChoice] {
+        search.isEmpty ? garages : garages.filter { $0.city.localizedStandardContains(search) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Garajlar").font(.headline)
+            Text("Seçilen garajlar Kaydet’e basınca 5 yerli olarak açılır. Bakiyeden ücret düşmez.")
+                .font(.callout).foregroundStyle(.secondary)
+            TextField("Şehir ara", text: $search).textFieldStyle(.roundedBorder)
+            HStack {
+                Button("Alınabileceklerin tümünü seç") { selected = buyable }
+                    .disabled(buyable.isEmpty || selected == buyable)
+                Button("Seçimi temizle") { selected.removeAll() }
+                    .disabled(selected.isEmpty)
+                Spacer()
+                Text("\(selected.count) seçili").foregroundStyle(.secondary)
+            }
+            List(visible) { garage in
+                HStack {
+                    if garage.canBuy {
+                        Toggle(garage.city.capitalized, isOn: selection(for: garage))
+                            .toggleStyle(.checkbox)
+                    } else {
+                        Text(garage.city.capitalized)
+                    }
+                    Spacer()
+                    Text(garage.label).foregroundStyle(.secondary)
+                }
+            }
+            .frame(height: 270)
+            HStack {
+                Spacer()
+                Button("Bitti") { dismiss() }.keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 460)
+    }
+
+    private func selection(for garage: GarageChoice) -> Binding<Bool> {
+        Binding(get: { selected.contains(garage.id) }, set: { enabled in
+            if enabled { selected.insert(garage.id) }
+            else { selected.remove(garage.id) }
+        })
     }
 }
 
@@ -311,6 +402,11 @@ private struct SteamOptions: View {
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
 
+            if steam?.enabled == true {
+                Text("Vulkan açıkken %100 ölçekleme siyah ekrana neden olabilir. Oyunda %100 dışında bir ölçek seç.")
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if steam?.running == true {
                 Text("Ayarı değiştirmek için Steam’i tamamen kapat ve Yenile’ye bas.")
                     .font(.callout).foregroundStyle(.secondary)
