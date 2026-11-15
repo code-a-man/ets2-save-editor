@@ -43,38 +43,42 @@ jobs:
             archs="$(xcrun lipo -archs "$binary")"
             [[ " $archs " == *' arm64 '* && " $archs " == *' x86_64 '* ]]
           done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ETS2-Save-Editor-macOS
+          path: dist/ETS2-Save-Editor-macOS-universal.zip
+          if-no-files-found: error
+
+  release:
+    if: github.event_name == 'push' && github.ref_type == 'tag' && github.actor_id == '43219246'
+    needs: build
+    environment: release
+    runs-on: macos-15
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: ETS2-Save-Editor-macOS
+          path: dist
+      - name: Fetch Sparkle
+        run: ./scripts/fetch-sparkle.sh "$RUNNER_TEMP/sparkle"
       - name: Sign Sparkle update
-        if: github.event_name == 'push' && github.ref_type == 'tag'
         env:
           SPARKLE_DIR: ${{ runner.temp }}/sparkle
           SPARKLE_SIGNING_KEY: ${{ secrets.SPARKLE_SIGNING_KEY }}
           RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_REPO: ${{ github.repository }}
         run: ./scripts/sign-appcast.sh
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ETS2-Save-Editor-macOS
-          path: |
-            dist/ETS2-Save-Editor-macOS-universal.zip
-            dist/appcast.xml
-          if-no-files-found: error
-
-  release:
-    if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: ETS2-Save-Editor-macOS
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$RELEASE_TAG" ETS2-Save-Editor-macOS-universal.zip appcast.xml \
+          gh release create "$RELEASE_TAG" dist/ETS2-Save-Editor-macOS-universal.zip dist/appcast.xml \
             --verify-tag --title "ETS2 Save Editor ${RELEASE_TAG#v}" --generate-notes

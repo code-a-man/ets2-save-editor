@@ -24,6 +24,6 @@ go test ./...
 open "dist/ETS2 Save Editor.app"
 ```
 
-Pushing a version tag triggers the GitHub Actions release workflow. It builds the universal ZIP and signs the Sparkle update with the repository’s `SPARKLE_SIGNING_KEY` secret.
+The repository owner publishes by pushing a `v*` tag. GitHub Actions builds the universal ZIP, then the release job signs and publishes it. The signing key is stored in the protected `release` environment.
 
 [MIT license](LICENSE) · Save decoding by [ets2-decrypt](https://github.com/avoinescu/ets2-decrypt) · Updates by [Sparkle](https://sparkle-project.org/)
