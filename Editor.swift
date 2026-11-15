@@ -84,6 +84,7 @@ private func runEditor<Result: Decodable>(_ arguments: [String], as type: Result
 }
 
 private struct Editor: View {
+    let checkForUpdates: () -> Void
     private let names = ["ADR", tr("Long Distance"), tr("High Value Cargo"), tr("Fragile Cargo"), tr("Just-in-Time Delivery"), tr("Eco Driving")]
     private let classes = [tr("Explosives"), tr("Gases"), tr("Flammable liquids"), tr("Flammable solids"), tr("Toxic substances"), tr("Corrosive substances")]
     @State private var save: SaveState?
@@ -232,6 +233,8 @@ private struct Editor: View {
                     }
                     .disabled(busy)
                 }
+                Spacer()
+                Button(tr("Check for Updates…"), action: checkForUpdates)
             }
 
             HStack {
@@ -252,7 +255,7 @@ private struct Editor: View {
             }
         }
         .padding(19)
-        .frame(width: 406)
+        .frame(width: 448)
         .sheet(isPresented: $showSteam) { SteamOptions() }
         .sheet(isPresented: $showGarages) {
             if let save {
@@ -317,10 +320,15 @@ private struct Editor: View {
 
     private func saveChanges() {
         guard let save, canSave, let amount = Int64(money), let target = careerTarget else { return }
-        load(["write", save.path, save.token, String(amount)] + skills.map { String($0) }
-             + [cancelJob ? "cancel" : "keep", "\(careerMode):\(target)", String(repair), String(refuel)]
-             + (visitCities ? ["visit-cities"] : [])
-             + (discoverDealers ? ["discover-dealers"] : []) + garagePurchases.sorted())
+        var arguments = ["write", save.path, save.token, String(amount)]
+        arguments.append(contentsOf: skills.map(String.init))
+        arguments.append(contentsOf: [
+            cancelJob ? "cancel" : "keep", "\(careerMode):\(target)", String(repair), String(refuel)
+        ])
+        if visitCities { arguments.append("visit-cities") }
+        if discoverDealers { arguments.append("discover-dealers") }
+        arguments.append(contentsOf: garagePurchases.sorted())
+        load(arguments)
     }
 
     private func load(_ arguments: [String]) {
@@ -493,7 +501,7 @@ struct SaveEditorApp: App {
 
     var body: some Scene {
         Window("ETS2 Save Editor", id: "editor") {
-            Editor()
+            Editor { updater.checkForUpdates(nil) }
         }
         .windowResizability(.contentSize)
         .commands {

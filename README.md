@@ -8,7 +8,7 @@ A macOS save editor for Euro Truck Simulator 2. Edit your balance, level, XP and
 2. Close ETS2. The editor finds local and Steam Cloud saves. Use **Choose…** for a custom folder containing `game.sii` and `info.sii`.
 3. Make your changes, click **Save**, and reload that save in ETS2.
 
-If macOS blocks the first launch, try opening the app once, then use **System Settings → Privacy & Security → Open Anyway**. For later releases, use **ETS2 Save Editor → Check for Updates…**.
+If macOS blocks the first launch, try opening the app once, then use **System Settings → Privacy & Security → Open Anyway**. For later releases, click **Check for Updates…** in the main window.
 
 Backups are stored in `~/Library/Application Support/ETS2 Save Editor/Backups/`. To restore one, close ETS2 and copy the ZIP’s two SII files back to the original save folder.
 
