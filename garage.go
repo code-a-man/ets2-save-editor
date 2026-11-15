@@ -50,7 +50,7 @@ func (d document) buyGarages(economy unit, ids []string, changes map[string]stri
 	}
 	for _, id := range ids {
 		if !buyable[id] {
-			return fmt.Errorf("Bu garaj satın alınamadı: %s", id)
+			return appError("Could not purchase garage %s.", id)
 		}
 		delete(buyable, id)
 		g := d.byID[id]

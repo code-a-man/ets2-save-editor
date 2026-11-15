@@ -50,11 +50,11 @@ company : company.volatile.example.ignored {
 	if err != nil || count != 3 {
 		t.Fatalf("unexpected count %d: %v", count, err)
 	}
-	cities, err := readVisitArray(economy, "visited_cities")
+	cities, err := readEconomyArray(economy, "visited_cities")
 	if err != nil || !slices.Equal(cities, []string{"rotterdam", "berlin", "hamburg"}) {
 		t.Fatalf("unexpected cities: %v, %v", cities, err)
 	}
-	counts, err := readVisitArray(economy, "visited_cities_count")
+	counts, err := readEconomyArray(economy, "visited_cities_count")
 	if err != nil || !slices.Equal(counts, []string{"4", "1", "1"}) || value(economy, "last_visited_city") != "rotterdam" {
 		t.Fatalf("unexpected visit data: %v, %v", counts, err)
 	}

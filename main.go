@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -56,21 +55,22 @@ type saveChoice struct {
 }
 
 type view struct {
-	UnvisitedCities int          `json:"unvisitedCities"`
-	Garages         []garageView `json:"garages"`
-	XP              int          `json:"xp"`
-	Level           int          `json:"level"`
-	CanRepair       bool         `json:"canRepair"`
-	CanRefuel       bool         `json:"canRefuel"`
-	Saves           []saveChoice `json:"saves"`
-	Path            string       `json:"path"`
-	Token           string       `json:"token"`
-	Money           string       `json:"money"`
-	Skills          []int        `json:"skills"`
-	Job             string       `json:"job"`
-	CanCancel       bool         `json:"canCancel"`
-	GameOpen        bool         `json:"gameOpen"`
-	Backup          string       `json:"backup,omitempty"`
+	UndiscoveredDealers int          `json:"undiscoveredDealers"`
+	UnvisitedCities     int          `json:"unvisitedCities"`
+	Garages             []garageView `json:"garages"`
+	XP                  int          `json:"xp"`
+	Level               int          `json:"level"`
+	CanRepair           bool         `json:"canRepair"`
+	CanRefuel           bool         `json:"canRefuel"`
+	Saves               []saveChoice `json:"saves"`
+	Path                string       `json:"path"`
+	Token               string       `json:"token"`
+	Money               string       `json:"money"`
+	Skills              []int        `json:"skills"`
+	Job                 string       `json:"job"`
+	CanCancel           bool         `json:"canCancel"`
+	GameOpen            bool         `json:"gameOpen"`
+	Backup              string       `json:"backup,omitempty"`
 }
 
 func readDoc(raw []byte) (document, error) {
@@ -85,19 +85,19 @@ func readDoc(raw []byte) (document, error) {
 		}
 	}
 	if !bytes.HasPrefix(data, []byte("SiiNunit")) {
-		return document{}, errors.New("SII biçimi tanınmadı.")
+		return document{}, appError("Unrecognized SII format.")
 	}
 	d := document{text: string(data), byID: map[string]unit{}}
 	for _, p := range blockRE.FindAllStringSubmatchIndex(d.text, -1) {
 		u := unit{d.text[p[2]:p[3]], d.text[p[4]:p[5]], p[0], p[1], d.text[p[0]:p[1]]}
 		if _, duplicate := d.byID[u.id]; duplicate {
-			return document{}, errors.New("Kayıtta yinelenen birim var.")
+			return document{}, appError("The save contains duplicate units.")
 		}
 		d.units = append(d.units, u)
 		d.byID[u.id] = u
 	}
 	if len(d.units) == 0 {
-		return document{}, errors.New("Kayıt okunamadı.")
+		return document{}, appError("Could not read the save.")
 	}
 	return d, nil
 }
@@ -109,12 +109,12 @@ func (d document) one(kind string) (unit, error) {
 			continue
 		}
 		if found.id != "" {
-			return unit{}, fmt.Errorf("Birden çok %s alanı var.", kind)
+			return unit{}, appError("The save contains more than one %s unit.", kind)
 		}
 		found = u
 	}
 	if found.id == "" {
-		return unit{}, fmt.Errorf("%s alanı bulunamadı.", kind)
+		return unit{}, appError("Could not find the %s unit.", kind)
 	}
 	return found, nil
 }
@@ -133,7 +133,7 @@ func value(u unit, key string) string {
 func (u *unit) change(key string, replacement func(string, string) string) error {
 	m := fieldRE(key).FindAllStringSubmatchIndex(u.text, -1)
 	if len(m) != 1 {
-		return fmt.Errorf("%s alanı değiştirilemedi.", key)
+		return appError("Could not edit %s.", key)
 	}
 	p := m[0]
 	u.text = u.text[:p[0]] + replacement(u.text[p[0]:p[1]], u.text[p[2]:p[3]]) + u.text[p[1]:]
@@ -146,7 +146,7 @@ func (u *unit) copyFields(src unit, keys ...string) error {
 	for _, key := range keys {
 		field := fieldRE(key).FindString(src.text)
 		if field == "" {
-			return fmt.Errorf("İşsiz kayıtta %s bulunamadı.", key)
+			return appError("Could not find %s in the save from before the job.", key)
 		}
 		if err := u.change(key, func(_, _ string) string { return field }); err != nil {
 			return err
@@ -175,7 +175,7 @@ func readRegular(path string) ([]byte, error) {
 		return nil, err
 	}
 	if !st.Mode().IsRegular() || st.Size() > 128*1024*1024 {
-		return nil, errors.New("Normal bir ETS2 kayıt dosyası seç.")
+		return nil, appError("Choose a regular ETS2 save file.")
 	}
 	return os.ReadFile(path)
 }
@@ -189,10 +189,10 @@ func readSlot(path string) (slot, error) {
 	}
 	s := slot{path: abs}
 	if _, err := os.Stat(filepath.Join(abs, "game.sii")); os.IsNotExist(err) {
-		return s, errors.New("game.sii ile info.sii dosyalarının bulunduğu klasörü seç.")
+		return s, appError("Choose a folder containing game.sii and info.sii.")
 	}
 	if _, err := os.Stat(filepath.Join(abs, "info.sii")); os.IsNotExist(err) {
-		return s, errors.New("info.sii, game.sii ile aynı klasörde olmalı.")
+		return s, appError("Put info.sii in the same folder as game.sii.")
 	}
 	s.rawGame, err = readRegular(filepath.Join(abs, "game.sii"))
 	if err != nil {
@@ -220,7 +220,7 @@ func slotLabel(dir, source string) string {
 	}
 	name := filepath.Base(dir)
 	if name == "autosave" {
-		name = "Otomatik kayıt"
+		name = translated("Autosave")
 	}
 	return profile + " · " + name + " · " + source
 }
@@ -271,7 +271,7 @@ func discoverSaves(home string) []saveChoice {
 	}
 	for _, parent := range []string{support, filepath.Join(home, "Documents")} {
 		for _, kind := range []string{"profiles", "steam_profiles"} {
-			add(filepath.Join(parent, "Euro Truck Simulator 2", kind), "Yerel")
+			add(filepath.Join(parent, "Euro Truck Simulator 2", kind), translated("Local"))
 		}
 	}
 	sort.SliceStable(saves, func(i, j int) bool { return saves[i].Modified.After(saves[j].Modified) })
@@ -284,7 +284,7 @@ func discoverSaves(home string) []saveChoice {
 func isGameOpen() (bool, error) {
 	data, err := exec.Command("/bin/ps", "-axo", "ucomm=,comm=").Output()
 	if err != nil {
-		return false, errors.New("Oyunun açık olup olmadığı kontrol edilemedi.")
+		return false, appError("Could not check whether ETS2 is running.")
 	}
 	return gameProcess.Match(data), nil
 }
@@ -299,11 +299,11 @@ func (s slot) jobInfo() (string, jobChange) {
 	}
 	job := s.game.byID[jid]
 	if job.kind != "player_job" {
-		return "Aktif iş", jobChange{}
+		return translated("Active job"), jobChange{}
 	}
 	cargo := strings.ReplaceAll(strings.TrimPrefix(value(job, "cargo"), "cargo."), "_", " ")
 	if cargo == "" {
-		cargo = "Aktif iş"
+		cargo = translated("Active job")
 	}
 	vehicles := s.game.byID[value(player, "assigned_vehicles")]
 	truck, trailer := value(job, "company_truck"), value(job, "company_trailer")
@@ -375,7 +375,7 @@ func (j jobChange) apply(d document, economy unit, changes map[string]string) er
 	gps := []string{"stored_gps_behind_waypoints", "stored_gps_ahead_waypoints", "stored_gps_waypoints_history"}
 	for _, key := range gps {
 		if value(j.baselineEconomy, key) != "0" {
-			return errors.New("İşsiz kayıtta başka GPS rotası var.")
+			return appError("The save from before the job has a separate GPS route.")
 		}
 		if err := economy.copyFields(j.baselineEconomy, key); err != nil {
 			return err
@@ -399,7 +399,7 @@ func (j jobChange) apply(d document, economy unit, changes map[string]string) er
 	for i := 0; i < len(queue); i++ {
 		u := d.byID[queue[i]]
 		if len(queue) > 500 || u.id == "" {
-			return errors.New("İşin araç bağlantıları doğrulanamadı.")
+			return appError("Could not verify which vehicles belong to the job.")
 		}
 		for _, id := range refs(u.text) {
 			if !discard[id] {
@@ -430,13 +430,13 @@ func (j jobChange) apply(d document, economy unit, changes map[string]string) er
 		}
 	}
 	if !discard[j.job.id] || !discard[value(j.job, "company_truck")] || !discard[value(j.job, "company_trailer")] {
-		return errors.New("İşin tırı veya dorsesi başka bir kayıtta kullanılıyor.")
+		return appError("Another save unit references this job’s truck or trailer.")
 	}
 	for id := range discard {
 		kind := d.byID[id].kind
 		if kind != "player_job" && kind != "vehicle" && kind != "trailer" &&
 			kind != "gps_waypoint_storage" && !strings.HasPrefix(kind, "vehicle_") {
-			return fmt.Errorf("Beklenmeyen iş bağlantısı: %s", kind)
+			return appError("Unexpected job reference: %s", kind)
 		}
 		changes[id] = ""
 	}
@@ -454,15 +454,15 @@ func inspect(s slot) (view, error) {
 	}
 	money := value(bank, "money_account")
 	if _, err := strconv.ParseInt(money, 10, 64); err != nil {
-		return view{}, errors.New("Bakiye okunamadı.")
+		return view{}, appError("Could not read the balance.")
 	}
 	xp, err := strconv.Atoi(value(economy, "experience_points"))
 	if err != nil || xp < 0 || xp > maxXP {
-		return view{}, errors.New("XP okunamadı.")
+		return view{}, appError("Could not read XP.")
 	}
 	rig := s.game.playerRig()
 	v := view{Path: s.path, Token: s.token, Money: money, XP: xp, Level: levelForXP(xp), Garages: s.game.garages(economy),
-		UnvisitedCities: len(s.game.unvisitedCities(economy)), CanRepair: wearField.MatchString(rig.truck.text), CanRefuel: value(rig.truck, "fuel_relative") != ""}
+		UnvisitedCities: len(s.game.unvisitedCities(economy)), UndiscoveredDealers: len(s.game.undiscoveredDealers(economy)), CanRepair: wearField.MatchString(rig.truck.text), CanRefuel: value(rig.truck, "fuel_relative") != ""}
 	for i, key := range skillKeys {
 		n, err := strconv.Atoi(value(economy, key))
 		limit := 6
@@ -470,7 +470,7 @@ func inspect(s slot) (view, error) {
 			limit = 63
 		}
 		if err != nil || n < 0 || n > limit {
-			return view{}, fmt.Errorf("%s becerisi okunamadı.", key)
+			return view{}, appError("Could not read the %s skill.", key)
 		}
 		v.Skills = append(v.Skills, n)
 	}
@@ -523,7 +523,7 @@ func makeBackup(root string, s slot) (string, error) {
 	}
 	defer check.Close()
 	if len(check.File) != 2 {
-		return "", errors.New("Yedek doğrulanamadı.")
+		return "", appError("Could not verify the backup.")
 	}
 	for i, expected := range [][]byte{s.rawGame, s.rawInfo} {
 		entry, err := check.File[i].Open()
@@ -533,7 +533,7 @@ func makeBackup(root string, s slot) (string, error) {
 		data, err := io.ReadAll(entry)
 		_ = entry.Close()
 		if err != nil || !bytes.Equal(data, expected) {
-			return "", errors.New("Yedek doğrulanamadı.")
+			return "", appError("Could not verify the backup.")
 		}
 	}
 	ok = true
@@ -574,21 +574,21 @@ func stage(target string, data []byte) (string, error) {
 
 func write(s slot, args []string, root string, gameOpen func() (bool, error)) (view, error) {
 	if len(args) != 9 && len(args) < 12 {
-		return view{}, errors.New("Eksik kayıt ayarı.")
+		return view{}, appError("Missing save settings.")
 	}
 	if args[0] != s.token {
-		return view{}, errors.New("Kayıt değişmiş. Yenileyip tekrar dene.")
+		return view{}, appError("The save changed. Reload it and try again.")
 	}
 	open, err := gameOpen()
 	if err != nil {
 		return view{}, err
 	}
 	if open {
-		return view{}, errors.New("Kaydetmeden önce ETS2’yi kapat.")
+		return view{}, appError("Close ETS2 before saving.")
 	}
 	money, err := strconv.ParseInt(args[1], 10, 64)
 	if err != nil {
-		return view{}, errors.New("Bakiye için tam sayı gir.")
+		return view{}, appError("Enter a whole number for the balance.")
 	}
 	economy, err := s.game.one("economy")
 	if err != nil {
@@ -605,7 +605,7 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 			limit = 63
 		}
 		if err != nil || n < 0 || n > limit {
-			return view{}, fmt.Errorf("Geçersiz beceri: %s", key)
+			return view{}, appError("Invalid skill: %s", key)
 		}
 		if strconv.Itoa(n) != value(economy, key) {
 			if err := economy.set(key, strconv.Itoa(n)); err != nil {
@@ -615,7 +615,7 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 	}
 	oldXP, err := strconv.Atoi(value(economy, "experience_points"))
 	if err != nil || oldXP < 0 || oldXP > maxXP {
-		return view{}, errors.New("XP okunamadı.")
+		return view{}, appError("Could not read XP.")
 	}
 	xp := oldXP
 	repair, refuel := false, false
@@ -653,6 +653,17 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 		}
 		garageIDs = garageIDs[1:]
 	}
+	unlockedDealers := 0
+	if len(garageIDs) > 0 && garageIDs[0] == "discover-dealers" {
+		dealers := s.game.undiscoveredDealers(economy)
+		if len(dealers) > 0 {
+			unlockedDealers, err = appendEconomyArray(&economy, "unlocked_dealers", dealers)
+			if err != nil {
+				return view{}, err
+			}
+		}
+		garageIDs = garageIDs[1:]
+	}
 	changes := map[string]string{economy.id: economy.text}
 	if len(garageIDs) > 0 {
 		if err := s.game.buyGarages(economy, garageIDs, changes); err != nil {
@@ -661,7 +672,7 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 	}
 	if repair || refuel {
 		if args[8] == "cancel" {
-			return view{}, errors.New("Araç bakımı ile iş iptalini ayrı ayrı kaydet.")
+			return view{}, appError("Save vehicle maintenance and job cancellation separately.")
 		}
 		if err := s.game.playerRig().edit(changes, repair, refuel); err != nil {
 			return view{}, err
@@ -671,16 +682,19 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 	case "cancel":
 		_, job := s.jobInfo()
 		if job.job.id == "" {
-			return view{}, errors.New("Bu Hızlı İş için uygun bir iş öncesi kayıt bulunamadı.")
+			return view{}, appError("No suitable save from before this Quick Job was found.")
 		}
 		if err := job.apply(s.game, economy, changes); err != nil {
 			return view{}, err
 		}
 	case "keep":
 	default:
-		return view{}, errors.New("Geçersiz iş seçimi.")
+		return view{}, appError("Invalid job option.")
 	}
 	metadata := map[string]string{}
+	if unlockedDealers > 0 {
+		metadata["info_unlocked_dealers"] = strconv.Itoa(unlockedDealers)
+	}
 	if visitedCities > 0 {
 		metadata["info_visited_cities"] = strconv.Itoa(visitedCities)
 	}
@@ -709,7 +723,7 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 	}
 	textGame := s.game.render(changes)
 	if textGame == s.game.text && textInfo == s.info.text {
-		return view{}, errors.New("Kaydedilecek değişiklik yok.")
+		return view{}, appError("There are no changes to save.")
 	}
 	backup, err := makeBackup(root, s)
 	if err != nil {
@@ -736,14 +750,14 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 	}
 	now, err := readSlot(s.path)
 	if err != nil || now.token != s.token {
-		return view{}, errors.New("Kayıt değişmiş. Yenileyip tekrar dene.")
+		return view{}, appError("The save changed. Reload it and try again.")
 	}
 	open, err = gameOpen()
 	if err != nil {
 		return view{}, err
 	}
 	if open {
-		return view{}, errors.New("Kaydetmeden önce ETS2’yi kapat.")
+		return view{}, appError("Close ETS2 before saving.")
 	}
 	if err := os.Rename(gameStage, gp); err != nil {
 		return view{}, err
@@ -751,7 +765,7 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 	if infoStage != "" {
 		if err := os.Rename(infoStage, ip); err != nil {
 			if rollbackErr := os.Rename(rollback, gp); rollbackErr != nil {
-				return view{}, fmt.Errorf("Kayıt geri alınamadı. Yedek: %s", backup)
+				return view{}, appError("Could not restore the save. Backup: %s", backup)
 			}
 			return view{}, err
 		}
@@ -767,7 +781,7 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 
 func run(args []string) (view, error) {
 	if len(args) == 0 || (args[0] != "read" && args[0] != "write") {
-		return view{}, errors.New("Geçersiz komut.")
+		return view{}, appError("Invalid command.")
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -791,12 +805,12 @@ func run(args []string) (view, error) {
 			}
 		}
 		if len(choices) == 0 {
-			return view{}, errors.New("ETS2 kaydı bulunamadı. Seç… ile kayıt klasörünü aç.")
+			return view{}, appError("No ETS2 saves found. Use Choose… to open a save folder.")
 		}
-		return view{}, errors.New("Otomatik bulunan kayıtlar açılamadı. Seç… ile başka bir kayıt aç.")
+		return view{}, appError("Could not open the detected saves. Use Choose… to open another save.")
 	}
 	if len(args) < 2 {
-		return view{}, errors.New("Kayıt seçilmedi.")
+		return view{}, appError("No save selected.")
 	}
 	s, err := readSlot(args[1])
 	if err != nil {
@@ -805,7 +819,7 @@ func run(args []string) (view, error) {
 
 	var v view
 	if args[0] == "write" {
-		root := filepath.Join(home, "Library", "Application Support", "ETS2 Save Editor", "Yedekler")
+		root := filepath.Join(home, "Library", "Application Support", "ETS2 Save Editor", "Backups")
 		v, err = write(s, args[2:], root, isGameOpen)
 		if err == nil {
 			choices = discoverSaves(home)

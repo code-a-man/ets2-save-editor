@@ -2,6 +2,18 @@ import AppKit
 import Sparkle
 import SwiftUI
 
+private let prefersTurkish = Locale.preferredLanguages.first?
+    .split(separator: "-").first?.lowercased() == "tr"
+
+private let translationBundle = prefersTurkish
+    ? Bundle.main.url(forResource: "tr", withExtension: "lproj").flatMap { Bundle(url: $0) }
+    : nil
+
+private func tr(_ key: String, _ arguments: CVarArg...) -> String {
+    let translation = translationBundle?.localizedString(forKey: key, value: key, table: nil) ?? key
+    return arguments.isEmpty ? translation : String(format: translation, arguments: arguments)
+}
+
 private struct SaveChoice: Decodable, Identifiable {
     let path: String
     let label: String
@@ -16,17 +28,18 @@ private struct GarageChoice: Decodable, Identifiable {
 
     var label: String {
         switch status {
-        case "0": return canBuy ? "Satın alınmamış" : "Kullanılamıyor"
-        case "2": return "Küçük · 3 yer"
-        case "3": return "Büyük · 5 yer"
-        case "6": return "Başlangıç · 1 yer"
-        default: return "Durum: \(status)"
+        case "0": return canBuy ? tr("Not owned") : tr("Unavailable")
+        case "2": return tr("Small · 3 slots")
+        case "3": return tr("Large · 5 slots")
+        case "6": return tr("Starter · 1 slot")
+        default: return tr("Status: %@", status)
         }
     }
 }
 
 private struct SaveState: Decodable {
     let garages: [GarageChoice]
+    let undiscoveredDealers: Int
     let unvisitedCities: Int
     let saves: [SaveChoice]
     let path: String
@@ -52,6 +65,9 @@ private func runEditor<Result: Decodable>(_ arguments: [String], as type: Result
     let task = Process()
     task.executableURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/ets2-save-core")
     task.arguments = arguments
+    var environment = ProcessInfo.processInfo.environment
+    environment["ETS2_LANGUAGE"] = prefersTurkish ? "tr" : "en"
+    task.environment = environment
     let output = Pipe()
     task.standardOutput = output
     task.standardError = FileHandle.nullDevice
@@ -62,14 +78,14 @@ private func runEditor<Result: Decodable>(_ arguments: [String], as type: Result
     if let failure = try? decoder.decode(EditorError.self, from: data) { throw failure }
     guard task.terminationStatus == 0,
           let result = try? decoder.decode(type, from: data) else {
-        throw EditorError(error: "Kayıt okunamadı.")
+        throw EditorError(error: tr("Could not read the save."))
     }
     return result
 }
 
 private struct Editor: View {
-    private let names = ["ADR", "Uzun Mesafe", "Değerli Yük", "Kırılgan Yük", "Zamanında Teslimat", "Ekonomik Sürüş"]
-    private let classes = ["Patlayıcılar", "Gazlar", "Yanıcı sıvılar", "Yanıcı katılar", "Zehirli maddeler", "Aşındırıcı maddeler"]
+    private let names = ["ADR", tr("Long Distance"), tr("High Value Cargo"), tr("Fragile Cargo"), tr("Just-in-Time Delivery"), tr("Eco Driving")]
+    private let classes = [tr("Explosives"), tr("Gases"), tr("Flammable liquids"), tr("Flammable solids"), tr("Toxic substances"), tr("Corrosive substances")]
     @State private var save: SaveState?
     @State private var money = ""
     @State private var skills = Array(repeating: 0, count: 6)
@@ -82,6 +98,7 @@ private struct Editor: View {
     @State private var showGarages = false
     @State private var garagePurchases: Set<String> = []
     @State private var visitCities = false
+    @State private var discoverDealers = false
     @State private var status = ""
     @State private var failed = false
     @State private var backup: String?
@@ -93,14 +110,14 @@ private struct Editor: View {
                 Text(saveLabel).font(.callout).foregroundStyle(.secondary)
                     .lineLimit(1).truncationMode(.middle).help(save?.path ?? "")
                 Spacer()
-                Button("Son Kayıt") { load(["read"]) }
-                    .help("En yeni ETS2 kaydını yeniden yükle")
-                Button("Seç…", action: chooseSave)
+                Button(tr("Latest Save")) { load(["read"]) }
+                    .help(tr("Reload the latest ETS2 save"))
+                Button(tr("Choose…"), action: chooseSave)
             }
             .disabled(busy)
 
             if let save, !save.saves.isEmpty {
-                Menu("Bulunan Kayıtlar") {
+                Menu(tr("Found Saves")) {
                     ForEach(save.saves) { choice in
                         Button(choice.label) { load(["read", choice.path]) }
                             .disabled(choice.path == save.path)
@@ -111,9 +128,9 @@ private struct Editor: View {
 
             Grid(alignment: .leading, horizontalSpacing: 22, verticalSpacing: 9) {
                 GridRow {
-                    Text("Bakiye")
+                    Text(tr("Balance"))
                     HStack(spacing: 5) {
-                        TextField("Bakiye", text: $money)
+                        TextField(tr("Balance"), text: $money)
                             .labelsHidden()
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 105)
@@ -121,8 +138,8 @@ private struct Editor: View {
                     }
                 }
                 GridRow {
-                    Picker("Kariyer", selection: $careerMode) {
-                        Text("Seviye").tag("level")
+                    Picker(tr("Career"), selection: $careerMode) {
+                        Text(tr("Level")).tag("level")
                         Text("XP").tag("xp")
                     }
                     .labelsHidden()
@@ -130,20 +147,20 @@ private struct Editor: View {
                     .onChange(of: careerMode) { mode in
                         if let save { career = String(mode == "level" ? save.level : save.xp) }
                     }
-                    TextField(careerMode == "level" ? "Seviye" : "XP", text: $career)
+                    TextField(careerMode == "level" ? tr("Level") : "XP", text: $career)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 105)
                 }
                 GridRow {
                     Text("ADR")
-                    Menu("\(skills[0].nonzeroBitCount) / 6 sınıf") {
+                    Menu(tr("%lld / 6 classes", skills[0].nonzeroBitCount)) {
                         ForEach(classes.indices, id: \.self) { index in
                             Toggle(classes[index], isOn: adrClass(index))
                         }
                     }
                     .frame(width: 128, alignment: .leading)
-                    Button("Maks") { skills[0] = 63 }
-                        .accessibilityLabel("Tüm ADR sınıflarını aç")
+                    Button(tr("Max")) { skills[0] = 63 }
+                        .accessibilityLabel(tr("Unlock all ADR classes"))
                         .disabled(skills[0] == 63)
                 }
                 ForEach(1..<names.count, id: \.self) { index in
@@ -156,8 +173,8 @@ private struct Editor: View {
                                 .labelsHidden()
                                 .accessibilityLabel(names[index])
                         }
-                        Button("Maks") { skills[index] = 6 }
-                            .accessibilityLabel("\(names[index]) becerisini en yüksek seviyeye çıkar")
+                        Button(tr("Max")) { skills[index] = 6 }
+                            .accessibilityLabel(tr("Max out %@", names[index]))
                             .disabled(skills[index] == 6)
                     }
                 }
@@ -165,20 +182,26 @@ private struct Editor: View {
             .disabled(save == nil || busy)
 
             if let save, save.unvisitedCities > 0 {
-                Toggle("Hızlı yolculuk için şehirleri aç (\(save.unvisitedCities))", isOn: $visitCities)
+                Toggle(tr("Unlock cities for quick travel (%lld)", save.unvisitedCities), isOn: $visitCities)
                     .toggleStyle(.checkbox)
-                    .help("Kayıttaki şehirleri ziyaret edilmiş olarak işaretler.")
+                    .help(tr("Marks cities in this save as visited."))
+                    .disabled(busy)
+            }
+
+            if let save, save.undiscoveredDealers > 0 {
+                Toggle(tr("Discover truck dealerships (%lld)", save.undiscoveredDealers), isOn: $discoverDealers)
+                    .toggleStyle(.checkbox)
                     .disabled(busy)
             }
 
             if let save, save.canRepair || save.canRefuel {
                 HStack(spacing: 15) {
                     if save.canRepair {
-                        Toggle("Tır ve dorseyi onar", isOn: $repair)
-                            .help("Hasar ve kalıcı aşınmayı sıfırlar.")
+                        Toggle(tr("Repair truck and trailer"), isOn: $repair)
+                            .help(tr("Clears damage and permanent wear."))
                     }
                     if save.canRefuel {
-                        Toggle("Depoyu doldur", isOn: $refuel)
+                        Toggle(tr("Refuel truck"), isOn: $refuel)
                     }
                 }
                 .toggleStyle(.checkbox)
@@ -186,12 +209,12 @@ private struct Editor: View {
             }
 
             if let save, save.canCancel {
-                Toggle("Hızlı işi cezasız iptal et", isOn: $cancelJob)
+                Toggle(tr("Cancel Quick Job without a fee"), isOn: $cancelJob)
                     .toggleStyle(.checkbox)
                     .help(save.job)
                     .disabled(busy || repair || refuel)
             } else if let save, !save.job.isEmpty {
-                Text("Bu iş için uygun iş öncesi kayıt bulunamadı.")
+                Text(tr("No suitable save from before this job was found."))
                     .font(.caption).foregroundStyle(.secondary)
             }
 
@@ -202,9 +225,9 @@ private struct Editor: View {
             }
 
             HStack(spacing: 12) {
-                Button("Steam Ayarları…") { showSteam = true }
+                Button(tr("Steam Settings…")) { showSteam = true }
                 if let save, !save.garages.isEmpty {
-                    Button(garagePurchases.isEmpty ? "Garajlar…" : "Garajlar (\(garagePurchases.count))") {
+                    Button(garagePurchases.isEmpty ? tr("Garages…") : tr("Garages (%lld)", garagePurchases.count)) {
                         showGarages = true
                     }
                     .disabled(busy)
@@ -214,15 +237,15 @@ private struct Editor: View {
             HStack {
                 if busy {
                     ProgressView().controlSize(.small)
-                        .accessibilityLabel("Kayıt işleniyor")
+                        .accessibilityLabel(tr("Processing save"))
                 }
                 if let backup {
-                    Button("Yedeği Göster") {
+                    Button(tr("Show Backup")) {
                         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: backup)])
                     }
                 }
                 Spacer()
-                Button("Kaydet", action: saveChanges)
+                Button(tr("Save"), action: saveChanges)
                     .keyboardShortcut("s", modifiers: .command)
                     .buttonStyle(.borderedProminent)
                     .disabled(!canSave || busy)
@@ -240,7 +263,7 @@ private struct Editor: View {
     }
 
     private var saveLabel: String {
-        guard let save else { return "Kayıt seçilmedi" }
+        guard let save else { return tr("No save selected") }
         let slot = URL(fileURLWithPath: save.path)
         let encoded = slot.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent
         var bytes = [UInt8]()
@@ -251,7 +274,7 @@ private struct Editor: View {
             index = next
         }
         let profile = index == encoded.endIndex ? String(bytes: bytes, encoding: .utf8) : nil
-        let name = slot.lastPathComponent == "autosave" ? "Otomatik kayıt" : slot.lastPathComponent
+        let name = slot.lastPathComponent == "autosave" ? tr("Autosave") : slot.lastPathComponent
         return profile.map { "\($0) · \(name)" } ?? name
     }
 
@@ -263,7 +286,7 @@ private struct Editor: View {
     private var canSave: Bool {
         guard let save, let amount = Int64(money), let target = careerTarget, !save.gameOpen else { return false }
         let original = careerMode == "level" ? save.level : save.xp
-        return String(amount) != save.money || skills != save.skills || target != original || cancelJob || repair || refuel || !garagePurchases.isEmpty || visitCities
+        return String(amount) != save.money || skills != save.skills || target != original || cancelJob || repair || refuel || !garagePurchases.isEmpty || visitCities || discoverDealers
     }
 
     private func adrClass(_ index: Int) -> Binding<Bool> {
@@ -279,7 +302,7 @@ private struct Editor: View {
 
     private func chooseSave() {
         let panel = NSOpenPanel()
-        panel.title = "ETS2 kayıt klasörünü veya game.sii dosyasını seç"
+        panel.title = tr("Choose an ETS2 save folder or game.sii")
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
@@ -296,7 +319,8 @@ private struct Editor: View {
         guard let save, canSave, let amount = Int64(money), let target = careerTarget else { return }
         load(["write", save.path, save.token, String(amount)] + skills.map { String($0) }
              + [cancelJob ? "cancel" : "keep", "\(careerMode):\(target)", String(repair), String(refuel)]
-             + (visitCities ? ["visit-cities"] : []) + garagePurchases.sorted())
+             + (visitCities ? ["visit-cities"] : [])
+             + (discoverDealers ? ["discover-dealers"] : []) + garagePurchases.sorted())
     }
 
     private func load(_ arguments: [String]) {
@@ -311,7 +335,7 @@ private struct Editor: View {
                     try runEditor(arguments, as: SaveState.self)
                 }.value
                 guard result.skills.count == 6 else {
-                    throw EditorError(error: "Beceriler okunamadı.")
+                    throw EditorError(error: tr("Could not read the skills."))
                 }
                 save = result
                 money = result.money
@@ -319,14 +343,15 @@ private struct Editor: View {
                 cancelJob = false
                 garagePurchases.removeAll()
                 visitCities = false
+                discoverDealers = false
                 repair = false
                 refuel = false
                 career = String(careerMode == "level" ? result.level : result.xp)
                 backup = result.backup
                 if result.gameOpen {
-                    status = "Kaydetmek için ETS2’yi kapat ve Son Kayıt’a bas."
+                    status = tr("Close ETS2 and click Latest Save before saving.")
                 } else if result.backup != nil {
-                    status = "Kaydedildi. ETS2’de bu kaydı yükle."
+                    status = tr("Saved. Load this save in ETS2.")
                 }
             } catch {
                 status = error.localizedDescription
@@ -349,17 +374,17 @@ private struct GarageOptions: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Garajlar").font(.headline)
-            Text("Seçilen garajlar Kaydet’e basınca 5 yerli olarak açılır. Bakiyeden ücret düşmez.")
+            Text(tr("Garages")).font(.headline)
+            Text(tr("Save to open the selected garages with five slots each at no cost."))
                 .font(.callout).foregroundStyle(.secondary)
-            TextField("Şehir ara", text: $search).textFieldStyle(.roundedBorder)
+            TextField(tr("Search cities"), text: $search).textFieldStyle(.roundedBorder)
             HStack {
-                Button("Alınabileceklerin tümünü seç") { selected = buyable }
+                Button(tr("Select All Available")) { selected = buyable }
                     .disabled(buyable.isEmpty || selected == buyable)
-                Button("Seçimi temizle") { selected.removeAll() }
+                Button(tr("Clear Selection")) { selected.removeAll() }
                     .disabled(selected.isEmpty)
                 Spacer()
-                Text("\(selected.count) seçili").foregroundStyle(.secondary)
+                Text(tr("%lld selected", selected.count)).foregroundStyle(.secondary)
             }
             List(visible) { garage in
                 HStack {
@@ -376,7 +401,7 @@ private struct GarageOptions: View {
             .frame(height: 270)
             HStack {
                 Spacer()
-                Button("Bitti") { dismiss() }.keyboardShortcut(.defaultAction)
+                Button(tr("Done")) { dismiss() }.keyboardShortcut(.defaultAction)
             }
         }
         .padding(20)
@@ -405,7 +430,7 @@ private struct SteamOptions: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Steam Başlatma Seçenekleri").font(.headline)
+            Text(tr("Steam Launch Options")).font(.headline)
             Toggle("Vulkan + SDR", isOn: Binding(
                 get: { steam?.enabled ?? false },
                 set: { enabled in
@@ -420,22 +445,22 @@ private struct SteamOptions: View {
                 .foregroundStyle(.secondary)
 
             if steam?.enabled == true {
-                Text("Vulkan açıkken %100 ölçekleme siyah ekrana neden olabilir. Oyunda %100 dışında bir ölçek seç.")
+                Text(tr("Vulkan can show a black screen at 100% scaling. Choose a different scaling value in ETS2."))
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
             }
             if steam?.running == true {
-                Text("Ayarı değiştirmek için Steam’i tamamen kapat ve Yenile’ye bas.")
+                Text(tr("Quit Steam completely and click Refresh to change this setting."))
                     .font(.callout).foregroundStyle(.secondary)
             }
             if !error.isEmpty {
                 Text(error).font(.callout).foregroundStyle(.red)
             }
             HStack {
-                Button("Yenile") { update([]) }.disabled(busy)
+                Button(tr("Refresh")) { update([]) }.disabled(busy)
                 if busy { ProgressView().controlSize(.small) }
                 Spacer()
-                Button("Kapat") { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(tr("Close")) { dismiss() }.keyboardShortcut(.cancelAction)
             }
         }
         .padding(20)
@@ -473,7 +498,7 @@ struct SaveEditorApp: App {
         .windowResizability(.contentSize)
         .commands {
             CommandGroup(after: .appInfo) {
-                Button("Güncellemeleri Denetle…") { updater.checkForUpdates(nil) }
+                Button(tr("Check for Updates…")) { updater.checkForUpdates(nil) }
             }
         }
     }

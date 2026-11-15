@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -56,7 +55,7 @@ func parseVDF(raw string) (vdfEntry, error) {
 	cursor := 0
 	for _, span := range vdfToken.FindAllStringIndex(raw, -1) {
 		if strings.TrimSpace(raw[cursor:span[0]]) != "" {
-			return vdfEntry{}, errors.New("Steam ayar dosyası okunamadı.")
+			return vdfEntry{}, appError("Could not read Steam settings.")
 		}
 		cursor = span[1]
 		if !strings.HasPrefix(raw[span[0]:span[1]], "//") {
@@ -64,7 +63,7 @@ func parseVDF(raw string) (vdfEntry, error) {
 		}
 	}
 	if strings.TrimSpace(raw[cursor:]) != "" {
-		return vdfEntry{}, errors.New("Steam ayar dosyası okunamadı.")
+		return vdfEntry{}, appError("Could not read Steam settings.")
 	}
 	i := 0
 	read := func() (string, int, int) {
@@ -107,7 +106,7 @@ func parseVDF(raw string) (vdfEntry, error) {
 	}
 	root, ok := object(0)
 	if !ok {
-		return vdfEntry{}, errors.New("Steam ayar dosyası okunamadı.")
+		return vdfEntry{}, appError("Could not read Steam settings.")
 	}
 	return root, nil
 }
@@ -138,14 +137,14 @@ func steamConfig(home string) (string, error) {
 						return config, nil
 					}
 				}
-				return "", errors.New("Son Steam hesabının yerel ayarları bulunamadı.")
+				return "", appError("Could not find settings for the last Steam account.")
 			}
 		}
 	}
 	if len(configs) == 1 {
 		return configs[0], nil
 	}
-	return "", errors.New("Steam hesabı belirlenemedi. Steam’de ETS2 hesabına giriş yap.")
+	return "", appError("Could not identify the Steam account. Sign in to the account that owns ETS2.")
 }
 
 func fpsFlags(options string) (sdr, vk, conflict bool, rest string) {
@@ -186,11 +185,11 @@ func patchSteamConfig(raw, mode string) (string, bool, error) {
 	}
 	app := root.child("UserLocalConfigStore").child("Software").child("Valve").child("Steam").child("apps").child("227300")
 	if app.end == 0 || raw[app.start] != '{' {
-		return "", false, errors.New("Steam’de ETS2 ayarı bulunamadı. Oyunu Steam’den bir kez aç.")
+		return "", false, appError("Could not find ETS2 in Steam settings. Launch it from Steam once.")
 	}
 	opts := app.child("LaunchOptions")
 	if opts.start != 0 && raw[opts.start] == '{' {
-		return "", false, errors.New("Steam başlatma seçenekleri okunamadı.")
+		return "", false, appError("Could not read the Steam launch options.")
 	}
 	sdr, vk, conflict, rest := fpsFlags(opts.value)
 	enabled := sdr && vk && !conflict
@@ -199,7 +198,7 @@ func patchSteamConfig(raw, mode string) (string, bool, error) {
 	}
 	if mode == "on" {
 		if conflict {
-			return "", false, errors.New("Steam’de farklı renk veya render seçeneği var. Önce o seçeneği Steam’den kaldır.")
+			return "", false, appError("Remove the conflicting color or renderer option in Steam before enabling this preset.")
 		}
 		if enabled {
 			return raw, true, nil
@@ -218,7 +217,7 @@ func patchSteamConfig(raw, mode string) (string, bool, error) {
 	start := strings.LastIndex(raw[:app.end], "\n") + 1
 	indent := raw[start:app.end]
 	if strings.TrimSpace(indent) != "" {
-		return "", false, errors.New("Steam’de önce ETS2 için bir başlatma seçeneği oluştur.")
+		return "", false, appError("Set a launch option for ETS2 in Steam first.")
 	}
 	newline := "\n"
 	if start >= 2 && raw[start-2] == '\r' {
@@ -233,7 +232,7 @@ func steamCommand(home string, args []string) (steamSettings, error) {
 	if len(args) == 2 && (args[0] == "on" || args[0] == "off") {
 		mode = args[0]
 	} else if len(args) != 0 {
-		return state, errors.New("Geçersiz Steam ayarı.")
+		return state, appError("Invalid Steam setting.")
 	}
 	path, err := steamConfig(home)
 	if err != nil {
@@ -255,10 +254,10 @@ func steamCommand(home string, args []string) (steamSettings, error) {
 	state.Token = current
 	if mode != "read" {
 		if state.Running {
-			return state, errors.New("Bu ayarı kaydetmek için Steam’i tamamen kapat.")
+			return state, appError("Quit Steam completely before changing this setting.")
 		}
 		if args[1] != current {
-			return state, errors.New("Steam ayarları değişti. Yenile ve tekrar dene.")
+			return state, appError("Steam settings changed. Refresh and try again.")
 		}
 	}
 	patched, enabled, err := patchSteamConfig(string(raw), mode)
@@ -272,11 +271,11 @@ func steamCommand(home string, args []string) (steamSettings, error) {
 	}
 	defer os.Remove(file)
 	if open, err := running(); err != nil || open {
-		return state, errors.New("Steam’in tamamen kapalı olması gerekiyor.")
+		return state, appError("Steam must be fully closed.")
 	}
 	now, err := readRegular(path)
 	if err != nil || !bytes.Equal(now, raw) {
-		return state, errors.New("Steam ayarları değişti. Yenile ve tekrar dene.")
+		return state, appError("Steam settings changed. Refresh and try again.")
 	}
 	if err := os.Rename(file, path); err != nil {
 		return state, err

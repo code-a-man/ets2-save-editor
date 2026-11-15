@@ -1,8 +1,6 @@
 package main
 
 import (
-	"errors"
-	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -44,7 +42,7 @@ func targetXP(current int, target string) (int, error) {
 	mode, input, _ := strings.Cut(target, ":")
 	n, err := strconv.Atoi(input)
 	if err != nil || n < 0 {
-		return 0, errors.New("Seviye veya XP için pozitif bir tam sayı ya da 0 gir.")
+		return 0, appError("Enter a whole number of zero or more for level or XP.")
 	}
 	switch mode {
 	case "level":
@@ -59,7 +57,7 @@ func targetXP(current int, target string) (int, error) {
 			return n, nil
 		}
 	}
-	return 0, errors.New("Seviye veya XP desteklenen aralığın dışında.")
+	return 0, appError("Level or XP is out of range.")
 }
 
 type activeRig struct {
@@ -108,7 +106,7 @@ var wearField = regexp.MustCompile(`(?m)^([ \t]+(?:engine_wear|transmission_wear
 
 func (r activeRig) edit(changes map[string]string, repair, refuel bool) error {
 	if r.truck.id == "" || (refuel && value(r.truck, "fuel_relative") == "") {
-		return fmt.Errorf("Bu kayıtta düzenlenebilir bir tır bulunamadı.")
+		return appError("No editable truck was found in this save.")
 	}
 	truck := r.truck
 	if refuel {
