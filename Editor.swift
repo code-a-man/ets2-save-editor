@@ -14,6 +14,15 @@ private func tr(_ key: String, _ arguments: CVarArg...) -> String {
     return arguments.isEmpty ? translation : String(format: translation, arguments: arguments)
 }
 
+@MainActor
+private func showAbout() {
+    let credits = NSMutableAttributedString(string: tr("A save editor for Euro Truck Simulator 2.") + "\n\n")
+    let repository = URL(string: "https://github.com/code-a-man/ets2-save-editor")!
+    credits.append(NSAttributedString(string: "GitHub", attributes: [.link: repository]))
+    credits.append(NSAttributedString(string: " · MIT License"))
+    NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
+}
+
 private struct SaveChoice: Decodable, Identifiable {
     let path: String
     let label: String
@@ -238,6 +247,7 @@ private struct Editor: View {
             }
 
             HStack {
+                Button(tr("About")) { showAbout() }
                 if busy {
                     ProgressView().controlSize(.small)
                         .accessibilityLabel(tr("Processing save"))
@@ -248,10 +258,16 @@ private struct Editor: View {
                     }
                 }
                 Spacer()
-                Button(tr("Save"), action: saveChanges)
-                    .keyboardShortcut("s", modifiers: .command)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!canSave || busy)
+                if backup != nil && !hasPendingChanges {
+                    Button(tr("Launch Game"), action: launchGame)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(busy)
+                } else {
+                    Button(tr("Save"), action: saveChanges)
+                        .keyboardShortcut("s", modifiers: .command)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canSave || busy)
+                }
             }
         }
         .padding(19)
@@ -286,10 +302,25 @@ private struct Editor: View {
         return n
     }
 
-    private var canSave: Bool {
-        guard let save, let amount = Int64(money), let target = careerTarget, !save.gameOpen else { return false }
+    private var hasPendingChanges: Bool {
+        guard let save else { return false }
         let original = careerMode == "level" ? save.level : save.xp
-        return String(amount) != save.money || skills != save.skills || target != original || cancelJob || repair || refuel || !garagePurchases.isEmpty || visitCities || discoverDealers
+        return Int64(money).map { String($0) } != save.money || skills != save.skills ||
+            careerTarget != original || cancelJob || repair || refuel ||
+            !garagePurchases.isEmpty || visitCities || discoverDealers
+    }
+
+    private var canSave: Bool {
+        guard let save, !save.gameOpen, Int64(money) != nil, careerTarget != nil else { return false }
+        return hasPendingChanges
+    }
+
+    private func launchGame() {
+        guard let url = URL(string: "steam://rungameid/227300"), NSWorkspace.shared.open(url) else {
+            status = tr("Could not open ETS2. Start it from Steam.")
+            failed = true
+            return
+        }
     }
 
     private func adrClass(_ index: Int) -> Binding<Bool> {
@@ -505,7 +536,8 @@ struct SaveEditorApp: App {
         }
         .windowResizability(.contentSize)
         .commands {
-            CommandGroup(after: .appInfo) {
+            CommandGroup(replacing: .appInfo) {
+                Button(tr("About ETS2 Save Editor")) { showAbout() }
                 Button(tr("Check for Updates…")) { updater.checkForUpdates(nil) }
             }
         }

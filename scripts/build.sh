@@ -14,9 +14,9 @@ case "$target" in
     *) echo "Usage: ./scripts/build.sh [arm64|x86_64|universal]" >&2; exit 2 ;;
 esac
 
-version="${ETS2_VERSION:-1.4.1}"
+version="${ETS2_VERSION:-1.4.2}"
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "ETS2_VERSION must be a version like 1.4.1." >&2
+    echo "ETS2_VERSION must be a version like 1.4.2." >&2
     exit 2
 fi
 
@@ -57,6 +57,14 @@ cp scripts/Info.plist "$app/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $version" "$app/Contents/Info.plist"
 cp LICENSE "$app/Contents/Resources/LICENSE.txt"
 ditto Resources "$app/Contents/Resources"
+iconset="$temp/AppIcon.iconset"
+mkdir -p "$iconset"
+for size in 16 32 128 256 512; do
+    sips -z "$size" "$size" assets/app-icon.png --out "$iconset/icon_${size}x${size}.png" >/dev/null
+    retina=$((2 * size))
+    sips -z "$retina" "$retina" assets/app-icon.png --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$iconset" -o "$app/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$core"
 codesign --force --sign - "$app"
 codesign --verify --strict --deep "$app"

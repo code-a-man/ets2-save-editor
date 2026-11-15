@@ -6,7 +6,7 @@ A macOS save editor for Euro Truck Simulator 2. Edit your balance, level, XP and
 
 1. [Download the macOS ZIP](https://github.com/code-a-man/ets2-save-editor/releases/latest/download/ETS2-Save-Editor-macOS-universal.zip). Unzip it and move **ETS2 Save Editor.app** to Applications. Built for macOS 13 and later on Apple Silicon and Intel.
 2. Close ETS2. The editor finds local and Steam Cloud saves. Use **Choose…** for a custom folder containing `game.sii` and `info.sii`.
-3. Make your changes, click **Save**, and reload that save in ETS2.
+3. Make your changes, click **Save**, then use **Launch Game** and load the edited save in ETS2.
 
 If macOS blocks the first launch, try opening the app once, then use **System Settings → Privacy & Security → Open Anyway**. For later releases, click **Check for Updates…** in the main window.
 

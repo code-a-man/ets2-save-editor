@@ -60,3 +60,8 @@
 "Garages (%lld)" = "Garajlar (%lld)";
 "%lld selected" = "%lld seçili";
 "Discover truck dealerships (%lld)" = "Tır bayilerini keşfet (%lld)";
+"A save editor for Euro Truck Simulator 2." = "Euro Truck Simulator 2 için kayıt düzenleyici.";
+"About" = "Hakkında";
+"About ETS2 Save Editor" = "ETS2 Save Editor Hakkında";
+"Launch Game" = "Oyunu Aç";
+"Could not open ETS2. Start it from Steam." = "ETS2 açılamadı. Steam’den başlat.";
