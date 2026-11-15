@@ -73,4 +73,10 @@ var turkishMessages = map[string]string{
 	"There are no changes to save.":                                                         "Kaydedilecek değişiklik yok.",
 	"Unexpected job reference: %s":                                                          "Beklenmeyen iş bağlantısı: %s",
 	"Unrecognized SII format.":                                                              "SII biçimi tanınmadı.",
+	"Choose a save inside an ETS2 profile to edit Driving Academy.":                         "Driving Academy’yi düzenlemek için ETS2 profilinin içindeki bir kaydı seç.",
+	"Complete one Driving Academy lesson and close ETS2 first.":                             "Önce Driving Academy’de bir dersi tamamla ve ETS2’yi kapat.",
+	"Could not copy the Driving Academy truck.":                                             "Driving Academy tırı kopyalanamadı.",
+	"Could not read Driving Academy progress.":                                              "Driving Academy ilerlemesi okunamadı.",
+	"Could not verify Driving Academy progress.":                                            "Driving Academy ilerlemesi doğrulanamadı.",
+	"This version of the Driving Academy save is unsupported.":                              "Driving Academy kaydının bu sürümü desteklenmiyor.",
 }

@@ -10,7 +10,9 @@ A macOS save editor for Euro Truck Simulator 2. Edit your balance, level, XP and
 
 If macOS blocks the first launch, try opening the app once, then use **System Settings → Privacy & Security → Open Anyway**. For later releases, click **Check for Updates…** in the main window.
 
-Backups are stored in `~/Library/Application Support/ETS2 Save Editor/Backups/`. To restore one, close ETS2 and copy the ZIP’s two SII files back to the original save folder.
+**Complete Driving Academy** fills in the three Academy modules for the selected profile. Complete one lesson in ETS2 first to create the progress file.
+
+Backups are stored in `~/Library/Application Support/ETS2 Save Editor/Backups/`. To restore one, close ETS2 and return the ZIP’s SII files to the original save or Academy folder.
 
 **Steam Settings → Vulkan + SDR** changes the launch options while Steam is closed. At 100% scaling Vulkan can show a black screen. Use a different scaling value in ETS2.
 

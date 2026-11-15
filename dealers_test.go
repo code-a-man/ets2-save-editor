@@ -45,11 +45,11 @@ company : company.volatile.terminal.travemunde {
 	if !slices.Equal(pending, []string{"berlin", "hamburg"}) {
 		t.Fatalf("unexpected dealer candidates: %v", pending)
 	}
-	count, err := appendEconomyArray(&economy, "unlocked_dealers", pending)
+	count, err := appendUnitArray(&economy, "unlocked_dealers", pending)
 	if err != nil || count != 3 {
 		t.Fatalf("unexpected dealer count %d: %v", count, err)
 	}
-	dealers, err := readEconomyArray(economy, "unlocked_dealers")
+	dealers, err := readUnitArray(economy, "unlocked_dealers")
 	if err != nil || !slices.Equal(dealers, []string{"osnabruck", "berlin", "hamburg"}) {
 		t.Fatalf("unexpected dealer list: %v, %v", dealers, err)
 	}

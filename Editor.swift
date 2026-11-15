@@ -65,6 +65,11 @@ private struct SaveState: Decodable {
     let backup: String?
 }
 
+private struct AcademyResult: Decodable {
+    let backup: String?
+    let added: Int
+}
+
 private struct EditorError: Decodable, LocalizedError {
     let error: String
     var errorDescription: String? { error }
@@ -228,6 +233,12 @@ private struct Editor: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
+            if save != nil {
+                Button(tr("Complete Driving Academy"), action: completeAcademy)
+                    .help(tr("Completes the three Academy modules for this profile."))
+                    .disabled(busy)
+            }
+
             if !status.isEmpty {
                 Text(status).font(.caption)
                     .foregroundStyle(failed ? Color(nsColor: .systemRed) : .secondary)
@@ -347,6 +358,30 @@ private struct Editor: View {
                 .appendingPathComponent("Library/Application Support")
         }
         if panel.runModal() == .OK, let url = panel.url { load(["read", url.path]) }
+    }
+
+    private func completeAcademy() {
+        guard let save, !busy else { return }
+        busy = true
+        failed = false
+        status = ""
+        Task { @MainActor in
+            defer { busy = false }
+            do {
+                let result = try await Task.detached(priority: .userInitiated) {
+                    try runEditor(["academy", save.path], as: AcademyResult.self)
+                }.value
+                if let academyBackup = result.backup {
+                    backup = academyBackup
+                }
+                status = result.added > 0
+                    ? tr("Driving Academy updated.")
+                    : tr("Driving Academy is already complete.")
+            } catch {
+                status = error.localizedDescription
+                failed = true
+            }
+        }
     }
 
     private func saveChanges() {

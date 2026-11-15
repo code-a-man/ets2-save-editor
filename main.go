@@ -480,11 +480,16 @@ func inspect(s slot) (view, error) {
 	return v, err
 }
 
-func makeBackup(root string, s slot) (string, error) {
+type backupItem struct {
+	name string
+	data []byte
+}
+
+func makeBackup(root, label string, items ...backupItem) (string, error) {
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return "", err
 	}
-	f, err := os.CreateTemp(root, time.Now().Format("2006-01-02_150405")+"_"+filepath.Base(s.path)+"_*.zip")
+	f, err := os.CreateTemp(root, time.Now().Format("2006-01-02_150405")+"_"+label+"_*.zip")
 	if err != nil {
 		return "", err
 	}
@@ -496,11 +501,8 @@ func makeBackup(root string, s slot) (string, error) {
 		}
 	}()
 	z := zip.NewWriter(f)
-	for _, item := range []struct {
-		name string
-		data []byte
-	}{{"game.sii", s.rawGame}, {"info.sii", s.rawInfo}} {
-		w, err := z.Create(filepath.Base(s.path) + "/" + item.name)
+	for _, item := range items {
+		w, err := z.Create(label + "/" + item.name)
 		if err != nil {
 			return "", err
 		}
@@ -522,17 +524,17 @@ func makeBackup(root string, s slot) (string, error) {
 		return "", err
 	}
 	defer check.Close()
-	if len(check.File) != 2 {
+	if len(check.File) != len(items) {
 		return "", appError("Could not verify the backup.")
 	}
-	for i, expected := range [][]byte{s.rawGame, s.rawInfo} {
+	for i, item := range items {
 		entry, err := check.File[i].Open()
 		if err != nil {
 			return "", err
 		}
 		data, err := io.ReadAll(entry)
 		_ = entry.Close()
-		if err != nil || !bytes.Equal(data, expected) {
+		if err != nil || !bytes.Equal(data, item.data) {
 			return "", appError("Could not verify the backup.")
 		}
 	}
@@ -657,7 +659,7 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 	if len(garageIDs) > 0 && garageIDs[0] == "discover-dealers" {
 		dealers := s.game.undiscoveredDealers(economy)
 		if len(dealers) > 0 {
-			unlockedDealers, err = appendEconomyArray(&economy, "unlocked_dealers", dealers)
+			unlockedDealers, err = appendUnitArray(&economy, "unlocked_dealers", dealers)
 			if err != nil {
 				return view{}, err
 			}
@@ -725,7 +727,8 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 	if textGame == s.game.text && textInfo == s.info.text {
 		return view{}, appError("There are no changes to save.")
 	}
-	backup, err := makeBackup(root, s)
+	backup, err := makeBackup(root, filepath.Base(s.path),
+		backupItem{"game.sii", s.rawGame}, backupItem{"info.sii", s.rawInfo})
 	if err != nil {
 		return view{}, err
 	}
@@ -842,6 +845,13 @@ func main() {
 		home, err = os.UserHomeDir()
 		if err == nil {
 			result, err = steamCommand(home, args[1:])
+		}
+	} else if len(args) == 2 && args[0] == "academy" {
+		var home string
+		home, err = os.UserHomeDir()
+		if err == nil {
+			root := filepath.Join(home, "Library", "Application Support", "ETS2 Save Editor", "Backups")
+			result, err = writeAcademy(args[1], root, isGameOpen)
 		}
 	} else {
 		result, err = run(args)

@@ -18,7 +18,7 @@ var dealerCities = map[string]string{
 }
 
 func (d document) undiscoveredDealers(economy unit) []string {
-	unlocked, err := readEconomyArray(economy, "unlocked_dealers")
+	unlocked, err := readUnitArray(economy, "unlocked_dealers")
 	if err != nil {
 		return nil
 	}

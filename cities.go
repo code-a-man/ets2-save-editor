@@ -41,11 +41,11 @@ func (d document) knownCities(economy unit) map[string]bool {
 
 func (d document) unvisitedCities(economy unit) []string {
 	known := d.knownCities(economy)
-	visited, err := readEconomyArray(economy, "visited_cities")
+	visited, err := readUnitArray(economy, "visited_cities")
 	if err != nil {
 		return nil
 	}
-	counts, err := readEconomyArray(economy, "visited_cities_count")
+	counts, err := readUnitArray(economy, "visited_cities_count")
 	if err != nil || len(counts) != len(visited) {
 		return nil
 	}
@@ -60,7 +60,7 @@ func (d document) unvisitedCities(economy unit) []string {
 	return cities
 }
 
-func readEconomyArray(economy unit, key string) ([]string, error) {
+func readUnitArray(economy unit, key string) ([]string, error) {
 	field := fieldRE(key).FindString(economy.text)
 	lines := strings.Split(field, "\n")
 	size, err := strconv.Atoi(value(economy, key))
@@ -78,8 +78,8 @@ func readEconomyArray(economy unit, key string) ([]string, error) {
 	return items, nil
 }
 
-func appendEconomyArray(economy *unit, key string, additions []string) (int, error) {
-	entries, err := readEconomyArray(*economy, key)
+func appendUnitArray(economy *unit, key string, additions []string) (int, error) {
+	entries, err := readUnitArray(*economy, key)
 	if err != nil {
 		return 0, err
 	}
@@ -105,7 +105,7 @@ func appendEconomyArray(economy *unit, key string, additions []string) (int, err
 	if err != nil {
 		return 0, err
 	}
-	updated, err := readEconomyArray(*economy, key)
+	updated, err := readUnitArray(*economy, key)
 	if err != nil || len(updated) != newCount || !slices.Equal(updated[count:], additions) {
 		return 0, appError("Could not verify %s.", key)
 	}
@@ -113,7 +113,7 @@ func appendEconomyArray(economy *unit, key string, additions []string) (int, err
 }
 
 func visitCities(economy *unit, cities []string) (int, error) {
-	count, err := appendEconomyArray(economy, "visited_cities", cities)
+	count, err := appendUnitArray(economy, "visited_cities", cities)
 	if err != nil {
 		return 0, err
 	}
@@ -121,7 +121,7 @@ func visitCities(economy *unit, cities []string) (int, error) {
 	for i := range visitCounts {
 		visitCounts[i] = "1"
 	}
-	countOfCounts, err := appendEconomyArray(economy, "visited_cities_count", visitCounts)
+	countOfCounts, err := appendUnitArray(economy, "visited_cities_count", visitCounts)
 	if err != nil {
 		return 0, err
 	}
