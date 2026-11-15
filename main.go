@@ -56,20 +56,21 @@ type saveChoice struct {
 }
 
 type view struct {
-	Garages   []garageView `json:"garages"`
-	XP        int          `json:"xp"`
-	Level     int          `json:"level"`
-	CanRepair bool         `json:"canRepair"`
-	CanRefuel bool         `json:"canRefuel"`
-	Saves     []saveChoice `json:"saves"`
-	Path      string       `json:"path"`
-	Token     string       `json:"token"`
-	Money     string       `json:"money"`
-	Skills    []int        `json:"skills"`
-	Job       string       `json:"job"`
-	CanCancel bool         `json:"canCancel"`
-	GameOpen  bool         `json:"gameOpen"`
-	Backup    string       `json:"backup,omitempty"`
+	UnvisitedCities int          `json:"unvisitedCities"`
+	Garages         []garageView `json:"garages"`
+	XP              int          `json:"xp"`
+	Level           int          `json:"level"`
+	CanRepair       bool         `json:"canRepair"`
+	CanRefuel       bool         `json:"canRefuel"`
+	Saves           []saveChoice `json:"saves"`
+	Path            string       `json:"path"`
+	Token           string       `json:"token"`
+	Money           string       `json:"money"`
+	Skills          []int        `json:"skills"`
+	Job             string       `json:"job"`
+	CanCancel       bool         `json:"canCancel"`
+	GameOpen        bool         `json:"gameOpen"`
+	Backup          string       `json:"backup,omitempty"`
 }
 
 func readDoc(raw []byte) (document, error) {
@@ -461,7 +462,7 @@ func inspect(s slot) (view, error) {
 	}
 	rig := s.game.playerRig()
 	v := view{Path: s.path, Token: s.token, Money: money, XP: xp, Level: levelForXP(xp), Garages: s.game.garages(economy),
-		CanRepair: wearField.MatchString(rig.truck.text), CanRefuel: value(rig.truck, "fuel_relative") != ""}
+		UnvisitedCities: len(s.game.unvisitedCities(economy)), CanRepair: wearField.MatchString(rig.truck.text), CanRefuel: value(rig.truck, "fuel_relative") != ""}
 	for i, key := range skillKeys {
 		n, err := strconv.Atoi(value(economy, key))
 		limit := 6
@@ -637,9 +638,24 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 			}
 		}
 	}
+	var garageIDs []string
+	if len(args) >= 12 {
+		garageIDs = args[12:]
+	}
+	visitedCities := 0
+	if len(garageIDs) > 0 && garageIDs[0] == "visit-cities" {
+		cities := s.game.unvisitedCities(economy)
+		if len(cities) > 0 {
+			visitedCities, err = visitCities(&economy, cities)
+			if err != nil {
+				return view{}, err
+			}
+		}
+		garageIDs = garageIDs[1:]
+	}
 	changes := map[string]string{economy.id: economy.text}
-	if len(args) > 12 {
-		if err := s.game.buyGarages(economy, args[12:], changes); err != nil {
+	if len(garageIDs) > 0 {
+		if err := s.game.buyGarages(economy, garageIDs, changes); err != nil {
 			return view{}, err
 		}
 	}
@@ -665,6 +681,9 @@ func write(s slot, args []string, root string, gameOpen func() (bool, error)) (v
 		return view{}, errors.New("Geçersiz iş seçimi.")
 	}
 	metadata := map[string]string{}
+	if visitedCities > 0 {
+		metadata["info_visited_cities"] = strconv.Itoa(visitedCities)
+	}
 	if amount := strconv.FormatInt(money, 10); amount != value(bank, "money_account") {
 		if err := bank.set("money_account", amount); err != nil {
 			return view{}, err

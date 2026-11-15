@@ -27,15 +27,25 @@ Değişiklikten önce iki dosyanın ZIP yedeği `~/Library/Application Support/E
 
 **Garajlar…** seçilen kayıttaki şehirleri ve garaj durumlarını listeler. İstediğin şehirleri veya alınabilecek tüm garajları seçip ana ekranda **Kaydet**’e bas. Yeni garajlar beş boş yerle açılır ve bakiyeden ücret düşmez.
 
+## Hızlı yolculuk ve beceriler
+
+**Hızlı yolculuk için şehirleri aç**, kayıtta bulunan ziyaret edilmemiş şehirleri ziyaret edilmiş olarak işaretler. Hızlı yolculuk noktalarını oyun belirler. Yolların keşif yüzdesi değişmez.
+
+Becerilerin yanındaki **Maks** düğmesi o beceriyi 6. sıraya çıkarır veya tüm ADR sınıflarını açar. Değişiklikler **Kaydet**’e basınca uygulanır.
+
 ## Seviye ve Steam ayarı
 
 **Seviye** girersen oyunun varsayılan XP tablosuna göre o seviyenin başlangıç XP’si yazılır. XP tablosunu değiştiren modlar kullanıyorsan **XP** alanını seç.
 
 **Steam Ayarları… → Vulkan + SDR**, ETS2’nin Steam başlatma seçeneklerindeki `-color_mode sdr -rdevice vk` çiftini açar veya kapatır. Ayarı değiştirmek için Steam’den tamamen çık ve **Yenile**’ye bas. Değişiklik bir sonraki oyun açılışında geçerli olur. Vulkan açıkken %100 ölçekleme siyah ekrana neden olabilir. Oyunda %100 dışında bir ölçek seç.
 
+## Güncelle
+
+1.3.0’ı bir kez indirip kur. Sonraki sürümler için **ETS2 Save Editor → Güncellemeleri Denetle…** menüsünü kullan. Sparkle, güncelleme listesinin ve ZIP’in imzasını doğrular. İlk kurulum için macOS’un **Yine de Aç** adımı geçerli olabilir.
+
 ## Sürüm yayımla
 
-`v1.2.0` biçiminde bir Git etiketi gönderildiğinde GitHub Actions testleri çalıştırır, Apple Silicon ve Intel için tek macOS ZIP’i derler ve GitHub Releases’e ekler. **Actions → macOS → Run workflow** ile sürüm oluşturmadan deneme paketi alabilirsin.
+`v1.3.0` biçiminde bir Git etiketi gönderildiğinde GitHub Actions testleri çalıştırır, Apple Silicon ve Intel için tek macOS ZIP’i derler, `SPARKLE_SIGNING_KEY` sırrıyla ZIP ve güncelleme listesini imzalar ve GitHub Releases’e ekler. **Actions → macOS → Run workflow** ile sürüm oluşturmadan deneme paketi alabilirsin.
 
 ## Kaynaktan derle
 

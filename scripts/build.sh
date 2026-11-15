@@ -14,16 +14,22 @@ case "$target" in
     *) echo "Usage: ./scripts/build.sh [arm64|x86_64|universal]" >&2; exit 2 ;;
 esac
 
-version="${ETS2_VERSION:-1.2.0}"
+version="${ETS2_VERSION:-1.3.0}"
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "ETS2_VERSION must be a version like 1.2.0." >&2
+    echo "ETS2_VERSION must be a version like 1.3.0." >&2
     exit 2
 fi
 
 temp="$(mktemp -d "${TMPDIR:-/tmp}/ets2-save-editor.XXXXXXXX")"
 trap 'rm -rf "$temp"' EXIT
 app="$temp/ETS2 Save Editor.app"
-mkdir -p "$app/Contents/"{MacOS,Helpers,Resources} dist
+mkdir -p "$app/Contents/"{MacOS,Helpers,Resources,Frameworks} dist
+if [[ -z "${SPARKLE_DIR:-}" ]]; then
+    SPARKLE_DIR="$temp/sparkle"
+    ./scripts/fetch-sparkle.sh "$SPARKLE_DIR"
+fi
+ditto "$SPARKLE_DIR/Sparkle.framework" "$app/Contents/Frameworks/Sparkle.framework"
+cp "$SPARKLE_DIR/LICENSE" "$app/Contents/Resources/Sparkle-LICENSE.txt"
 
 for arch in "${architectures[@]}"; do
     goarch="$arch"
@@ -31,6 +37,8 @@ for arch in "${architectures[@]}"; do
     CGO_ENABLED=0 GOOS=darwin GOARCH="$goarch" \
         go build -p 2 -trimpath -ldflags='-s -w' -o "$temp/core-$arch" .
     xcrun swiftc -parse-as-library -O -target "$arch-apple-macos13.0" \
+        -F "$app/Contents/Frameworks" -framework Sparkle \
+        -Xlinker -rpath -Xlinker @executable_path/../Frameworks \
         Editor.swift -o "$temp/ui-$arch"
 done
 

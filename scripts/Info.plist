@@ -6,9 +6,14 @@
     <key>CFBundleIdentifier</key><string>local.ets2.mini</string>
     <key>CFBundleName</key><string>ETS2 Save Editor</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.2.0</string>
-    <key>CFBundleVersion</key><string>1.2.0</string>
+    <key>CFBundleShortVersionString</key><string>1.3.0</string>
+    <key>CFBundleVersion</key><string>1.3.0</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>SUFeedURL</key><string>https://github.com/code-a-man/ets2-save-editor/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key><string>oq21c9b646uXxgvZSLaAWJ29h4sO86cocz8Gm7erh6w=</string>
+    <key>SUVerifyUpdateBeforeExtraction</key><true/>
+    <key>SURequireSignedFeed</key><true/>
+    <key>SUEnableAutomaticChecks</key><false/>
 </dict>
 </plist>

@@ -1,4 +1,5 @@
 import AppKit
+import Sparkle
 import SwiftUI
 
 private struct SaveChoice: Decodable, Identifiable {
@@ -26,6 +27,7 @@ private struct GarageChoice: Decodable, Identifiable {
 
 private struct SaveState: Decodable {
     let garages: [GarageChoice]
+    let unvisitedCities: Int
     let saves: [SaveChoice]
     let path: String
     let token: String
@@ -79,6 +81,7 @@ private struct Editor: View {
     @State private var showSteam = false
     @State private var showGarages = false
     @State private var garagePurchases: Set<String> = []
+    @State private var visitCities = false
     @State private var status = ""
     @State private var failed = false
     @State private var backup: String?
@@ -139,6 +142,9 @@ private struct Editor: View {
                         }
                     }
                     .frame(width: 128, alignment: .leading)
+                    Button("Maks") { skills[0] = 63 }
+                        .accessibilityLabel("Tüm ADR sınıflarını aç")
+                        .disabled(skills[0] == 63)
                 }
                 ForEach(1..<names.count, id: \.self) { index in
                     GridRow {
@@ -150,10 +156,20 @@ private struct Editor: View {
                                 .labelsHidden()
                                 .accessibilityLabel(names[index])
                         }
+                        Button("Maks") { skills[index] = 6 }
+                            .accessibilityLabel("\(names[index]) becerisini en yüksek seviyeye çıkar")
+                            .disabled(skills[index] == 6)
                     }
                 }
             }
             .disabled(save == nil || busy)
+
+            if let save, save.unvisitedCities > 0 {
+                Toggle("Hızlı yolculuk için şehirleri aç (\(save.unvisitedCities))", isOn: $visitCities)
+                    .toggleStyle(.checkbox)
+                    .help("Kayıttaki şehirleri ziyaret edilmiş olarak işaretler.")
+                    .disabled(busy)
+            }
 
             if let save, save.canRepair || save.canRefuel {
                 HStack(spacing: 15) {
@@ -247,7 +263,7 @@ private struct Editor: View {
     private var canSave: Bool {
         guard let save, let amount = Int64(money), let target = careerTarget, !save.gameOpen else { return false }
         let original = careerMode == "level" ? save.level : save.xp
-        return String(amount) != save.money || skills != save.skills || target != original || cancelJob || repair || refuel || !garagePurchases.isEmpty
+        return String(amount) != save.money || skills != save.skills || target != original || cancelJob || repair || refuel || !garagePurchases.isEmpty || visitCities
     }
 
     private func adrClass(_ index: Int) -> Binding<Bool> {
@@ -280,7 +296,7 @@ private struct Editor: View {
         guard let save, canSave, let amount = Int64(money), let target = careerTarget else { return }
         load(["write", save.path, save.token, String(amount)] + skills.map { String($0) }
              + [cancelJob ? "cancel" : "keep", "\(careerMode):\(target)", String(repair), String(refuel)]
-             + garagePurchases.sorted())
+             + (visitCities ? ["visit-cities"] : []) + garagePurchases.sorted())
     }
 
     private func load(_ arguments: [String]) {
@@ -302,6 +318,7 @@ private struct Editor: View {
                 skills = result.skills
                 cancelJob = false
                 garagePurchases.removeAll()
+                visitCities = false
                 repair = false
                 refuel = false
                 career = String(careerMode == "level" ? result.level : result.xp)
@@ -445,10 +462,19 @@ private struct SteamOptions: View {
 
 @main
 struct SaveEditorApp: App {
+    private let updater = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil
+    )
+
     var body: some Scene {
         Window("ETS2 Save Editor", id: "editor") {
             Editor()
         }
         .windowResizability(.contentSize)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Güncellemeleri Denetle…") { updater.checkForUpdates(nil) }
+            }
+        }
     }
 }

@@ -24,8 +24,11 @@ jobs:
           cache: false
       - name: Test
         run: go test ./...
+      - name: Fetch Sparkle
+        run: ./scripts/fetch-sparkle.sh "$RUNNER_TEMP/sparkle"
       - name: Build universal app
         env:
+          SPARKLE_DIR: ${{ runner.temp }}/sparkle
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
         run: |
@@ -40,10 +43,20 @@ jobs:
             archs="$(xcrun lipo -archs "$binary")"
             [[ " $archs " == *' arm64 '* && " $archs " == *' x86_64 '* ]]
           done
+      - name: Sign Sparkle update
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        env:
+          SPARKLE_DIR: ${{ runner.temp }}/sparkle
+          SPARKLE_SIGNING_KEY: ${{ secrets.SPARKLE_SIGNING_KEY }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_REPO: ${{ github.repository }}
+        run: ./scripts/sign-appcast.sh
       - uses: actions/upload-artifact@v7
         with:
           name: ETS2-Save-Editor-macOS
-          path: dist/ETS2-Save-Editor-macOS-universal.zip
+          path: |
+            dist/ETS2-Save-Editor-macOS-universal.zip
+            dist/appcast.xml
           if-no-files-found: error
 
   release:
@@ -63,5 +76,5 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$RELEASE_TAG" ETS2-Save-Editor-macOS-universal.zip \
+          gh release create "$RELEASE_TAG" ETS2-Save-Editor-macOS-universal.zip appcast.xml \
             --verify-tag --title "ETS2 Save Editor ${RELEASE_TAG#v}" --generate-notes
