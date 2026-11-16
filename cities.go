@@ -41,6 +41,9 @@ func (d document) knownCities(economy unit) map[string]bool {
 
 func (d document) unvisitedCities(economy unit) []string {
 	known := d.knownCities(economy)
+	if len(known) == 0 {
+		return nil
+	}
 	visited, err := readUnitArray(economy, "visited_cities")
 	if err != nil {
 		return nil
@@ -52,7 +55,7 @@ func (d document) unvisitedCities(economy unit) []string {
 	for _, city := range visited {
 		delete(known, city)
 	}
-	var cities []string
+	cities := make([]string, 0, len(known))
 	for city := range known {
 		cities = append(cities, city)
 	}

@@ -57,6 +57,8 @@ type saveChoice struct {
 type view struct {
 	UndiscoveredDealers int          `json:"undiscoveredDealers"`
 	UnvisitedCities     int          `json:"unvisitedCities"`
+	CitiesComplete      bool         `json:"citiesComplete"`
+	DealersComplete     bool         `json:"dealersComplete"`
 	Garages             []garageView `json:"garages"`
 	XP                  int          `json:"xp"`
 	Level               int          `json:"level"`
@@ -69,6 +71,7 @@ type view struct {
 	Skills              []int        `json:"skills"`
 	Job                 string       `json:"job"`
 	CanCancel           bool         `json:"canCancel"`
+	AcademyComplete     bool         `json:"academyComplete"`
 	GameOpen            bool         `json:"gameOpen"`
 	Backup              string       `json:"backup,omitempty"`
 }
@@ -461,8 +464,12 @@ func inspect(s slot) (view, error) {
 		return view{}, appError("Could not read XP.")
 	}
 	rig := s.game.playerRig()
+	cities := s.game.unvisitedCities(economy)
+	dealers := s.game.undiscoveredDealers(economy)
 	v := view{Path: s.path, Token: s.token, Money: money, XP: xp, Level: levelForXP(xp), Garages: s.game.garages(economy),
-		UnvisitedCities: len(s.game.unvisitedCities(economy)), UndiscoveredDealers: len(s.game.undiscoveredDealers(economy)), CanRepair: wearField.MatchString(rig.truck.text), CanRefuel: value(rig.truck, "fuel_relative") != ""}
+		UnvisitedCities: len(cities), UndiscoveredDealers: len(dealers),
+		CitiesComplete: cities != nil && len(cities) == 0, DealersComplete: dealers != nil && len(dealers) == 0,
+		CanRepair: wearField.MatchString(rig.truck.text), CanRefuel: value(rig.truck, "fuel_relative") != ""}
 	for i, key := range skillKeys {
 		n, err := strconv.Atoi(value(economy, key))
 		limit := 6
@@ -476,6 +483,7 @@ func inspect(s slot) (view, error) {
 	}
 	title, job := s.jobInfo()
 	v.Job, v.CanCancel = title, job.job.id != ""
+	v.AcademyComplete = isAcademyComplete(s.path)
 	v.GameOpen, err = isGameOpen()
 	return v, err
 }

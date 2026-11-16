@@ -28,6 +28,7 @@ jobs:
         run: ./scripts/fetch-sparkle.sh "$RUNNER_TEMP/sparkle"
       - name: Build universal app
         env:
+          DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
           SPARKLE_DIR: ${{ runner.temp }}/sparkle
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
@@ -80,5 +81,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
+          notes_file=".github/release-notes/$RELEASE_TAG.md"
+          notes=(--generate-notes)
+          if [[ -f "$notes_file" ]]; then
+            notes=(--notes-file "$notes_file")
+          fi
           gh release create "$RELEASE_TAG" dist/ETS2-Save-Editor-macOS-universal.zip dist/appcast.xml \
-            --verify-tag --title "ETS2 Save Editor ${RELEASE_TAG#v}" --generate-notes
+            --verify-tag --title "ETS2 Save Editor ${RELEASE_TAG#v}" "${notes[@]}"

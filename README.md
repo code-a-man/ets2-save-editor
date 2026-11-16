@@ -10,11 +10,11 @@ A macOS save editor for Euro Truck Simulator 2. Edit your balance, level, XP and
 
 If macOS blocks the first launch, try opening the app once, then use **System Settings → Privacy & Security → Open Anyway**. For later releases, click **Check for Updates…** in the main window.
 
-**Complete Driving Academy** fills in the three Academy modules for the selected profile. Complete one lesson in ETS2 first to create the progress file.
+Select **Complete Driving Academy**, then click **Save** to complete all three modules for the selected profile. Complete one lesson in ETS2 first to create the progress file.
 
 Backups are stored in `~/Library/Application Support/ETS2 Save Editor/Backups/`. To restore one, close ETS2 and return the ZIP’s SII files to the original save or Academy folder.
 
-**Steam Settings → Vulkan + SDR** changes the launch options while Steam is closed. At 100% scaling Vulkan can show a black screen. Use a different scaling value in ETS2.
+The **Vulkan + SDR** checkbox in the main window changes the launch options while Steam is closed. At 100% scaling Vulkan can show a black screen. Use a different scaling value in ETS2.
 
 ## Build
 
@@ -26,6 +26,6 @@ go test ./...
 open "dist/ETS2 Save Editor.app"
 ```
 
-The repository owner publishes by pushing a `v*` tag. GitHub Actions builds the universal ZIP, then the release job signs and publishes it. The signing key is stored in the protected `release` environment.
+The repository owner publishes by pushing a `v*` tag. GitHub Actions builds the universal ZIP, then the release job signs and publishes it. The signing key is stored in the protected `release` environment. To show the same release notes on GitHub and in the updater, add a bullet list in `.github/release-notes/<tag>.md`.
 
 [MIT license](LICENSE) · Save decoding by [ets2-decrypt](https://github.com/avoinescu/ets2-decrypt) · Updates by [Sparkle](https://sparkle-project.org/)

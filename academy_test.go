@@ -57,6 +57,9 @@ academy_scenario_result : _nameless.6 {
 		t.Fatal(err)
 	}
 	slot := filepath.Join(root, "profile", "save", "autosave")
+	if isAcademyComplete(slot) {
+		t.Fatal("a profile missing lessons was reported as complete")
+	}
 	backups := filepath.Join(root, "backups")
 	if _, err := writeAcademy(slot, backups, func() (bool, error) { return true, nil }); err == nil {
 		t.Fatal("accepted an edit while the game was open")
@@ -65,6 +68,9 @@ academy_scenario_result : _nameless.6 {
 	result, err := writeAcademy(slot, backups, closed)
 	if err != nil || result.Added != 77 || result.Backup == "" {
 		t.Fatalf("writeAcademy = %+v, %v", result, err)
+	}
+	if !isAcademyComplete(slot) {
+		t.Fatal("the saved Academy completion was not detected")
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {

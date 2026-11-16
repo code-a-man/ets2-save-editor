@@ -120,16 +120,63 @@ func academyResult(id, scenario string, lesson academyLesson, now int64) string 
 	return b.String()
 }
 
-func completeAcademy(d document, now int64) ([]byte, int, error) {
+func academyBooks(d document) (unit, map[string]academyBook, error) {
 	container, err := d.one("academy_save_container")
 	if err != nil {
-		return nil, 0, err
+		return unit{}, nil, err
 	}
 	version := value(container, "version")
 	if version != "93" && version != "105" {
-		return nil, 0, appError("This version of the Driving Academy save is unsupported.")
+		return unit{}, nil, appError("This version of the Driving Academy save is unsupported.")
 	}
 	books, err := readAcademyBooks(d, container)
+	return container, books, err
+}
+
+func academyPath(slotPath string) (string, error) {
+	folder := filepath.Dir(filepath.Clean(slotPath))
+	if filepath.Base(folder) != "save" {
+		return "", appError("Choose a save inside an ETS2 profile to edit Driving Academy.")
+	}
+	return filepath.Join(filepath.Dir(folder), "academy", academyFile), nil
+}
+
+func (book academyBook) hasRank(scenario string, minRank int) bool {
+	rank, found := book.ranks[scenario]
+	return found && rank >= minRank
+}
+
+func isAcademyComplete(slotPath string) bool {
+	path, err := academyPath(slotPath)
+	if err != nil {
+		return false
+	}
+	raw, err := readRegular(path)
+	if err != nil {
+		return false
+	}
+	d, err := readDoc(raw)
+	if err != nil {
+		return false
+	}
+	_, books, err := academyBooks(d)
+	if err != nil {
+		return false
+	}
+	for i, lessons := range academyLessons {
+		book := books[fmt.Sprintf("academy.book.book%d", i+1)]
+		prefix := fmt.Sprintf("academy.scenario.book%d.", i+1)
+		for _, lesson := range lessons {
+			if !book.hasRank(prefix+lesson.key, lesson.rank) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func completeAcademy(d document, now int64) ([]byte, int, error) {
+	container, books, err := academyBooks(d)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -172,7 +219,7 @@ func completeAcademy(d document, now int64) ([]byte, int, error) {
 		var results []string
 		for _, lesson := range lessons {
 			scenario := prefix + lesson.key
-			if rank, ok := book.ranks[scenario]; ok && rank >= lesson.rank {
+			if book.hasRank(scenario, lesson.rank) {
 				continue
 			}
 			id := newID()
@@ -220,11 +267,10 @@ func completeAcademy(d document, now int64) ([]byte, int, error) {
 }
 
 func writeAcademy(slotPath, root string, gameOpen func() (bool, error)) (academyWrite, error) {
-	folder := filepath.Dir(filepath.Clean(slotPath))
-	if filepath.Base(folder) != "save" {
-		return academyWrite{}, appError("Choose a save inside an ETS2 profile to edit Driving Academy.")
+	path, err := academyPath(slotPath)
+	if err != nil {
+		return academyWrite{}, err
 	}
-	path := filepath.Join(filepath.Dir(folder), "academy", academyFile)
 	open, err := gameOpen()
 	if err != nil {
 		return academyWrite{}, err

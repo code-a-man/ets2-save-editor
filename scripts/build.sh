@@ -14,9 +14,9 @@ case "$target" in
     *) echo "Usage: ./scripts/build.sh [arm64|x86_64|universal]" >&2; exit 2 ;;
 esac
 
-version="${ETS2_VERSION:-1.4.2}"
+version="${ETS2_VERSION:-1.5.0}"
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "ETS2_VERSION must be a version like 1.4.2." >&2
+    echo "ETS2_VERSION must be a version like 1.5.0." >&2
     exit 2
 fi
 

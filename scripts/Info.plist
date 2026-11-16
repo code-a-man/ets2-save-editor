@@ -9,8 +9,8 @@
     <key>CFBundleIdentifier</key><string>local.ets2.mini</string>
     <key>CFBundleName</key><string>ETS2 Save Editor</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.4.2</string>
-    <key>CFBundleVersion</key><string>1.4.2</string>
+    <key>CFBundleShortVersionString</key><string>1.5.0</string>
+    <key>CFBundleVersion</key><string>1.5.0</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>SUFeedURL</key><string>https://github.com/code-a-man/ets2-save-editor/releases/latest/download/appcast.xml</string>

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"sort"
 	"strings"
 )
@@ -23,16 +24,19 @@ func (d document) undiscoveredDealers(economy unit) []string {
 		return nil
 	}
 	cities := d.knownCities(economy)
-	for _, city := range unlocked {
-		delete(cities, city)
-	}
 	var dealers []string
 	for _, tokens := range dealerCities {
 		for _, city := range strings.Fields(tokens) {
-			if cities[city] {
-				dealers = append(dealers, city)
-				delete(cities, city)
+			if !cities[city] {
+				continue
 			}
+			if dealers == nil {
+				dealers = []string{}
+			}
+			if !slices.Contains(unlocked, city) {
+				dealers = append(dealers, city)
+			}
+			delete(cities, city)
 		}
 	}
 	sort.Strings(dealers)
